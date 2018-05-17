@@ -29,10 +29,17 @@ SOURCES += \
 
 RC_FILE = $$PWD/version.rc
 
-linux-g++ {
+app_linux {
     LIBS += -L$$PWD/$$CORE_LIB_PATH/lib/$$PLATFORM_BUILD -lascdocumentscore -lhunspell -looxmlsignature
     DEFINES += LINUX _LINUX _LINUX_QT _GLIBCXX_USE_CXX11_ABI=0
 
+	DEFINES += FILEDIALOG_DONT_USE_NATIVEDIALOGS
+    #DEFINES += FILEDIALOG_DONT_USE_MODAL
+
+    LIBS += $$CORE_LIB_PATH/../Common/3dParty/icu/linux_64/build/libicuuc.so.58
+    LIBS += $$CORE_LIB_PATH/../Common/3dParty/icu/linux_64/build/libicudata.so.58
+    include($$CORE_LIB_PATH/../Common/3dParty/openssl/openssl.pri)
+	
     message($$PLATFORM_BUILD)
 }
 
