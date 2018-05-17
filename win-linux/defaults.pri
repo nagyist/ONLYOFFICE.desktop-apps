@@ -142,9 +142,6 @@ app_linux {
         }
         message("build for centos6")
     }
-
-    LIBS += $$PWD/$$CORE_LIB_PATH/bin/icu/$$PLATFORM_BUILD/libicuuc.so.60
-    LIBS += $$PWD/$$CORE_LIB_PATH/bin/icu/$$PLATFORM_BUILD/libicudata.so.60
 }
 
 
