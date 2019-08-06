@@ -107,6 +107,10 @@ CFileDialogWrapper::CFileDialogWrapper(QWidget * parent) : QObject(parent)
     m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_PDFA]  = tr("PDFA File (*.pdf)");
     m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_DJVU]  = tr("DJVU File (*.djvu)");
     m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_XPS]   = tr("XPS File (*.xps)");
+
+#ifdef FILE_SAVE_ADDONS
+    FILE_SAVE_ADDONS(m_mapFilters)
+#endif
 }
 
 CFileDialogWrapper::~CFileDialogWrapper()
@@ -233,7 +237,10 @@ QStringList CFileDialogWrapper::modalOpen(const QString& path, const QString& fi
                     tr("Spreadsheets") + " (*.xlsx *.xls *.ods *.ots *.csv *.xltx *.xltm *.fods);;" +
                     tr("Presentations") + " (*.pptx *.ppt *.odp *.otp *.ppsm *.ppsx *.potx *.potm *.fodp);;" +
                     tr("Web Page") + " (*.html *.htm *.mht);;" +
-                    tr("Text files") + " (*.txt)";
+                    tr("Text files") + " (*.txt);;" +
+                    m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_PDF] + ";;" +
+                    m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_DJVU] + ";;" +
+                    m_mapFilters[AVS_OFFICESTUDIO_FILE_CROSSPLATFORM_XPS];
     }
 
     QString _sel_filter = selected ? *selected : m_mapFilters[AVS_OFFICESTUDIO_FILE_UNKNOWN];
