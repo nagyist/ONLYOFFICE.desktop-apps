@@ -54,11 +54,13 @@ platform :mac do
       skip_package_pkg: true
     )
 
-    notarize(
-      package: app,
-      print_log: true,
-      verbose: true
-    )
+    if options[:notarization] || true
+      notarize(
+        package: app,
+        print_log: true,
+        verbose: true
+      )
+    end
 
     desc 'Prepare zip for delta update'
     sh("ditto -c -k --rsrc --keepParent #{ENV['PWD']}/#{app} #{ENV['PWD']}/#{build}/#{scheme}-#{version_number}.zip")
@@ -67,24 +69,22 @@ platform :mac do
     sh("npm install appdmg")
     sh("npx appdmg resources/appdmg.json ../#{build}/#{app_name}.dmg")
 
-    if options[:skip_git_bump]
-      next
+    if options[:git_bump] || true
+      desc 'Creates a bump version commit'
+      commit_version_bump(
+        message: "[macos] Version bumped to v#{version_number}(#{build_number})-#{git_suffix}",
+        force: true
+      )
+
+      desc 'Create a local tag with the new version'
+      add_git_tag(
+        tag: "macos/v#{version_number}-#{build_number}-#{git_suffix}",
+        build_number: build_number
+      )
+
+      # push changes
+      push_to_git_remote
     end
-
-    desc 'Creates a bump version commit'
-    commit_version_bump(
-      message: "[macos] Version bumped to v#{version_number}(#{build_number})-#{git_suffix}",
-      force: true
-    )
-
-    desc 'Create a local tag with the new version'
-    add_git_tag(
-      tag: "macos/v#{version_number}-#{build_number}-#{git_suffix}",
-      build_number: build_number
-    )
-
-    # push changes
-    push_to_git_remote
   end
 
   # arm64 only
