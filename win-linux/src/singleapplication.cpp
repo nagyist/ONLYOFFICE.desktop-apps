@@ -87,6 +87,9 @@ public:
     SingleApplicationPrv(SingleApplication *owner);
     virtual ~SingleApplicationPrv();
 
+    enum Type : uchar {
+        DAEMON, CLIENT, UNDEF
+    };
     uchar singleton_connect();
     static void handle_signal(int signal);
     static void randomSleep();
@@ -96,9 +99,7 @@ public:
     SingleApplication *owner;
     SOCKET socket_fd;
     static bool run;
-    bool isdaemon;
-    bool isPrimary;
-    bool isClient;
+    uchar instType;
 
 private slots:
     void sendSignal(const QString&);
@@ -110,9 +111,7 @@ SingleApplication::SingleApplicationPrv::SingleApplicationPrv(SingleApplication 
     QObject(nullptr),
     owner(owner),
     socket_fd(-1),
-    isdaemon(false),
-    isPrimary(false),
-    isClient(false)
+    instType(Type::UNDEF)
 {}
 
 SingleApplication::SingleApplicationPrv::~SingleApplicationPrv()
@@ -159,7 +158,6 @@ uchar SingleApplication::SingleApplicationPrv::singleton_connect()
         ret = bind(tmpd, (struct sockaddr*)&addr, len);
         if (ret == 0) {
             socket_fd = tmpd;
-            isdaemon = true;
             return Type::DAEMON;
 
         } else {
@@ -314,21 +312,16 @@ SingleApplication::SingleApplication(int &argc, char **argv) :
     QEventLoop *evloop = new QEventLoop;
     future = QtConcurrent::run(
             [this, evloop]() mutable {
-        switch (pimpl->singleton_connect()) {
-        case Type::DAEMON: {
-            pimpl->isPrimary = true;
-            evloop->exit(0);
+        pimpl->instType = pimpl->singleton_connect();
+        evloop->exit(0);
+        switch (pimpl->instType) {
+        case SingleApplicationPrv::Type::DAEMON:
             pimpl->startPrimary();
             break;
-        }
-        case Type::CLIENT: {
-            pimpl->isClient = true;
-            evloop->exit(0);
+        case SingleApplicationPrv::Type::CLIENT:
             break;
-        }
         default:
             printf("Identification error!\n");
-            evloop->exit(0);
             // FAILURE
         }
 
@@ -347,7 +340,7 @@ SingleApplication::~SingleApplication()
         WSACleanup();
 #else
         shutdown(pimpl->socket_fd, SHUT_RDWR);
-        if (pimpl->isdaemon) {
+        if (pimpl->instType == SingleApplicationPrv::Type::DAEMON) {
             if (unlink(PATHNAME) < 0)
                 printf("Could not remove FIFO.\n");
         } else
@@ -363,7 +356,7 @@ SingleApplication::~SingleApplication()
 
 bool SingleApplication::sendMessage(const QString &message)
 {
-    if (!pimpl->isClient)
+    if (pimpl->instType != SingleApplicationPrv::Type::CLIENT)
         return false;
 
     std::string client_arg(message.toStdString());
@@ -393,7 +386,7 @@ bool SingleApplication::sendMessage(const QString &message)
 
 bool SingleApplication::isPrimary()
 {
-    return pimpl->isPrimary;
+    return pimpl->instType == SingleApplicationPrv::Type::DAEMON;
 }
 
 #include "singleapplication.moc"

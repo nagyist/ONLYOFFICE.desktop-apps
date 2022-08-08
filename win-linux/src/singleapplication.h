@@ -51,9 +51,6 @@ signals:
     void receivedMessage(QString message);
 
 private:
-    enum Type : uchar {
-        DAEMON, CLIENT, UNDEF
-    };
     QFuture<void> future;
     class SingleApplicationPrv;
     SingleApplicationPrv *pimpl;
