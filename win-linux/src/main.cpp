@@ -143,8 +143,11 @@ int main( int argc, char *argv[] )
                 if ( !arg.isEmpty() )
                     vec_inargs.push_back(arg.toStdWString());
             }
-            if (vec_inargs.empty() && !args.isEmpty())
-                vec_inargs.push_back(args.toStdWString());
+            if (vec_inargs.empty() && !args.isEmpty()) {
+                QString repl_args = args;
+                repl_args.replace(";", "");
+                vec_inargs.push_back(repl_args.toStdWString());
+            }
 
             if ( !vec_inargs.empty() )
                 AscAppManager::getInstance().handleInputCmd(vec_inargs);
