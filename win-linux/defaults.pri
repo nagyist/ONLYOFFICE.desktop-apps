@@ -1,7 +1,7 @@
 
 QT  += core gui widgets gui-private widgets-private core-private printsupport
 QT  += multimedia multimediawidgets
-QT  += svg
+QT  += svg concurrent
 
 TEMPLATE = app
 CONFIG += app_bundle
@@ -104,6 +104,7 @@ HEADERS += \
     $$PWD/src/cappeventfilter.h \
     $$PWD/src/cthemes.h \
     $$PWD/src/cupdatemanager.h \
+    $$PWD/src/singleapplication.h
 #    src/ctabbar_p.h \
 #    src/ctabstyle.h \
 #    src/ctabstyle_p.h
@@ -146,6 +147,7 @@ SOURCES += \
     $$PWD/src/cappeventfilter.cpp \
     $$PWD/src/cthemes.cpp \
     $$PWD/src/cupdatemanager.cpp \
+    $$PWD/src/singleapplication.cpp
 #    src/ctabstyle.cpp
 #    src/components/casclabel.cpp
 
@@ -195,16 +197,14 @@ core_linux {
                 #$$PWD/src/windows/platform_linux/gtk_addon.h \
                 $$PWD/src/windows/platform_linux/cwindowplatform.h \
                 $$PWD/src/platform_linux/cdialogopenssl.h \
-                $$PWD/src/platform_linux/cdialogcertificateinfo.h \
-                $$PWD/src/platform_linux/singleapplication.h
+                $$PWD/src/platform_linux/cdialogcertificateinfo.h
 
     SOURCES +=  $$PWD/src/windows/platform_linux/cx11decoration.cpp \
                 #$$PWD/src/windows/platform_linux/gtk_addon.cpp \
                 #$$PWD/src/windows/platform_linux/cx11caption.cpp \
                 $$PWD/src/windows/platform_linux/cwindowplatform.cpp \
                 $$PWD/src/platform_linux/cdialogopenssl.cpp \
-                $$PWD/src/platform_linux/cdialogcertificateinfo.cpp \
-                $$PWD/src/platform_linux/singleapplication.cpp
+                $$PWD/src/platform_linux/cdialogcertificateinfo.cpp
 
     contains(DEFINES, XDG_DESKTOP_PORTAL_KDE) {
         HEADERS += $$PWD/src/platform_linux/kdefiledialog.h
