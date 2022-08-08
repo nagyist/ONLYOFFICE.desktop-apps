@@ -38,7 +38,7 @@
 #include "components/cmessage.h"
 #include "../Common/OfficeFileFormats.h"
 #include "common/Types.h"
-
+#include <QApplication>
 #include <QGridLayout>
 #include <QPushButton>
 #include <QRegion>

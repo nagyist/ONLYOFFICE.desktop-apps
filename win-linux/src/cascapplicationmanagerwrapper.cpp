@@ -1,7 +1,7 @@
 
 #include "cascapplicationmanagerwrapper.h"
 #include "cascapplicationmanagerwrapperintf.h"
-
+#include <QApplication>
 #include <QMutexLocker>
 #include <QTimer>
 #include <QDir>
@@ -1012,33 +1012,6 @@ void CAscApplicationManagerWrapper::initializeApp()
     if ( AscAppManager::IsUseSystemScaling() ) {
         AscAppManager::setUserSettings(L"force-scale", L"default");
     }
-
-#ifdef _WIN32
-//    CSplash::showSplash();
-    QApplication::processEvents();
-#else //defined(Q_OS_LINUX)
-    if ( !InputArgs::contains(L"--single-window-app") ) {
-        SingleApplication * app = static_cast<SingleApplication *>(QCoreApplication::instance());
-        connect(app, &SingleApplication::showUp, [](QString args){
-            std::vector<std::wstring> vec_inargs;
-            QStringListIterator iter(args.split(";")); iter.next();
-            while ( iter.hasNext() ) {
-                QString arg = iter.next();
-                if ( !arg.isEmpty() )
-                    vec_inargs.push_back(arg.toStdWString());
-            }
-
-            if ( !vec_inargs.empty() ) {
-                handleInputCmd(vec_inargs);
-            }
-
-//            QTimer::singleShot(0, []{
-                if ( mainWindow() )
-                    mainWindow()->bringToTop();
-//            });
-        });
-    }
-#endif
 
     /* prevent drawing of focus rectangle on a button */
 //    QApplication::setStyle(new CStyleTweaks);
