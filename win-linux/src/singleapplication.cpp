@@ -77,7 +77,8 @@
 # include <limits>
 #endif
 
-#define READ_INTERVAL_MS 100
+#define READ_INTERVAL_MS 300
+#define SEND_DELAY_MS 800
 
 
 class SingleApplication::SingleApplicationPrv : public QObject
@@ -364,6 +365,7 @@ bool SingleApplication::sendMessage(const QString &message)
     if (len == 0)
         return false;
 
+    QThread::msleep(SEND_DELAY_MS);
     SingleApplicationPrv::randomSleep();
 #ifdef _WIN32
     int ret_len = send(pimpl->socket_fd, (char*)&len, (int)sizeof(uint32_t), 0); // Send the data length
