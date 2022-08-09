@@ -80,7 +80,7 @@
 #define READ_INTERVAL_MS 10
 #define SEND_DELAY_MS 100
 #define RETRIES_DELAY 300
-#define RETRIES_COUNT 20
+#define RETRIES_COUNT 10
 
 
 class SingleApplication::SingleApplicationPrv : public QObject
@@ -271,20 +271,38 @@ void SingleApplication::SingleApplicationPrv::readMessage()
     while (run) {
         int ret_len = recv(socket_fd, (char*)&len, (int)sizeof(uint32_t), 0); // Receive the message length
         if (ret_len != (int)sizeof(uint32_t)) {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                printf("Error while accessing socket\n");
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAEINTR) {
+#else
+            if (errno == EINTR) {
+#endif
+                printf("Shutdown socket\n");
                 fflush(stdout);
-                // FAILURE
+                break;
+            } else {
+#ifdef _WIN32
+                if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
+#else
+                if (errno != EAGAIN && errno != EWOULDBLOCK) {
+#endif
+                    printf("Error while accessing socket\n");
+                    fflush(stdout);
+                    // FAILURE
+                }
+                printf("No further client_args in socket\n");
+                fflush(stdout);
             }
-            printf("No further client_args in socket\n");
-            fflush(stdout);
 
         } else {
             len = ntohl(len); // Ensure host system byte order with the necessary size
             rcvBuf.resize(len, 0x00);
             int ret_data = recv(socket_fd, (char*)&(rcvBuf[0]), (int)len, 0); // Receive the string data
             if (ret_data != (int)len) {
+#ifdef _WIN32
+                if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
+#else
                 if (errno != EAGAIN && errno != EWOULDBLOCK) {
+#endif
                     printf("Error while accessing socket\n");
                     fflush(stdout);
                     // FAILURE
