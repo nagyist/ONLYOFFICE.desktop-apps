@@ -77,8 +77,10 @@
 # include <limits>
 #endif
 
-#define READ_INTERVAL_MS 300
-#define SEND_DELAY_MS 800
+#define READ_INTERVAL_MS 10
+#define SEND_DELAY_MS 100
+#define RETRIES_DELAY 300
+#define RETRIES_COUNT 20
 
 
 class SingleApplication::SingleApplicationPrv : public QObject
@@ -153,7 +155,7 @@ uchar SingleApplication::SingleApplicationPrv::singleton_connect()
 #endif
 
     int ret;
-    unsigned int retries = 10;
+    unsigned int retries = RETRIES_COUNT;
     do {
         // bind the name to the descriptor
         ret = bind(tmpd, (struct sockaddr*)&addr, len);
@@ -181,10 +183,12 @@ uchar SingleApplication::SingleApplicationPrv::singleton_connect()
 #else
                         unlink(PATHNAME);
 #endif
+                        QThread::currentThread()->msleep(RETRIES_DELAY);
                         continue;
                     }
                     printf("Could not connect to socket\n");
                     fflush(stdout);
+                    QThread::currentThread()->msleep(RETRIES_DELAY);
                     continue;
                 }
                 printf("Daemon is already running\n");
@@ -194,8 +198,10 @@ uchar SingleApplication::SingleApplicationPrv::singleton_connect()
             }
             printf("Could not bind to socket\n");
             fflush(stdout);
+            QThread::currentThread()->msleep(RETRIES_DELAY);
             continue;
         }
+        QThread::currentThread()->msleep(RETRIES_DELAY);
     } while (retries-- > 0);
 
     printf("Could neither connect to an existing daemon nor become one\n");
@@ -289,12 +295,13 @@ void SingleApplication::SingleApplicationPrv::readMessage()
             } else {
                 receivedString.assign((char*)&(rcvBuf[0]), rcvBuf.size()); // assign buffered data to a string
                 QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(receivedString)));
+                QCoreApplication::processEvents();
                 printf("Received client arg: %s\n", receivedString.c_str());
                 fflush(stdout);
                 // SUCCESS
             }
         }
-        QThread::msleep(READ_INTERVAL_MS);
+        QThread::currentThread()->msleep(READ_INTERVAL_MS);
     }
     printf("Dropped out of daemon loop\n");
     fflush(stdout);
