@@ -137,18 +137,10 @@ int main( int argc, char *argv[] )
         QObject::connect(&app, &SingleApplication::receivedMessage,
                          [](const QString &args) {
             std::vector<std::wstring> vec_inargs;
-            QStringListIterator iter(args.split(";")); iter.next();
-            while ( iter.hasNext() ) {
-                QString arg = iter.next();
+            foreach (auto arg, args.split(";")) {
                 if ( !arg.isEmpty() )
                     vec_inargs.push_back(arg.toStdWString());
             }
-            if (vec_inargs.empty() && !args.isEmpty()) {
-                QString repl_args = args;
-                repl_args.replace(";", "");
-                vec_inargs.push_back(repl_args.toStdWString());
-            }
-
             if ( !vec_inargs.empty() )
                 AscAppManager::getInstance().handleInputCmd(vec_inargs);
 
