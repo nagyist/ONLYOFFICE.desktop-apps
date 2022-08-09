@@ -133,22 +133,6 @@ int main( int argc, char *argv[] )
     */
     CLangater::init();
     AscAppManager::initializeApp();
-    if ( !InputArgs::contains(L"--single-window-app") ) {
-        QObject::connect(&app, &SingleApplication::receivedMessage,
-                         [](const QString &args) {
-            std::vector<std::wstring> vec_inargs;
-            foreach (auto arg, args.split(";")) {
-                if ( !arg.isEmpty() )
-                    vec_inargs.push_back(arg.toStdWString());
-            }
-            if ( !vec_inargs.empty() )
-                AscAppManager::getInstance().handleInputCmd(vec_inargs);
-
-            if ( AscAppManager::getInstance().mainWindow() )
-                AscAppManager::getInstance().mainWindow()->bringToTop();
-        });
-    }
-
     AscAppManager::startApp();
     AscAppManager::getInstance().StartSpellChecker();
     AscAppManager::getInstance().StartKeyboardChecker();
