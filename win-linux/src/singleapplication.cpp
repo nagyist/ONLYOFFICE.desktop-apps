@@ -274,11 +274,10 @@ void SingleApplication::SingleApplicationPrv::readMessage()
 #ifdef _WIN32
             if (WSAGetLastError() == WSAEINTR) {
 #else
-            if (errno == EINTR) {
+            if (errno == 0 || errno == EINTR) {
 #endif
                 printf("Shutdown socket\n");
                 fflush(stdout);
-                break;
             } else {
 #ifdef _WIN32
                 if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
