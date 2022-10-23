@@ -47,8 +47,6 @@
 #include <math.h>
 
 
-struct printdata;
-
 class CMainWindow : public CWindowPlatform, public CScalingWrapper
 {
     Q_OBJECT
@@ -92,6 +90,7 @@ public:
     void toggleButtonMain(bool, bool delay = false);
     bool holdUid(int) const;
     bool holdUrl(const QString&, AscEditorType) const;
+    int  startPanelId();
     int  tabCloseRequest(int index = -1);    
 #ifdef __linux
     void setMouseTracking(bool);
@@ -151,10 +150,11 @@ private:
     QWidget*         m_pMainWidget;
     QPushButton*     m_pButtonProfile;
     CDownloadWidget* m_pWidgetDownload;
-    printdata*       m_printData;
     QString          m_savePortal;
     bool             m_isMaximized;
     int              m_saveAction;
+    struct           printdata;
+    printdata*       m_printData;
 
 private slots:
     void slot_modalDialog(bool,  WId);

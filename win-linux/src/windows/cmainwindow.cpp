@@ -32,6 +32,7 @@
 
 #include "windows/cmainwindow.h"
 #include "cascapplicationmanagerwrapper.h"
+#include "ceditortools.h"
 #include "defines.h"
 #include "utils.h"
 #include "csplash.h"
@@ -50,7 +51,7 @@
 #include <QApplication>
 #include <QIcon>
 #include <QPrinterInfo>
-#include <QPrintDialog>
+#include "components/cprintdialog.h"
 #include <QDir>
 #include <QMenu>
 #include <QWidgetAction>
@@ -67,6 +68,8 @@
 
 #ifdef _WIN32
 # include "shlobj.h"
+#else
+# include <platform_linux/gtkprintdialog.h>
 #endif
 
 
@@ -80,9 +83,11 @@ using namespace NSEditorApi;
 
 #define TOP_NATIVE_WINDOW_HANDLE this
 
-struct printdata {
+struct CMainWindow::printdata {
 public:
-    printdata() : _print_range(QPrintDialog::PrintRange::AllPages) {}
+    printdata() :
+        _printer_info(QPrinterInfo::defaultPrinter()),
+        _print_range(QPrintDialog::PrintRange::AllPages) {}
     QPrinterInfo _printer_info;
     QPrintDialog::PrintRange _print_range;
 };
@@ -96,10 +101,10 @@ CMainWindow::CMainWindow(const QRect &rect) :
     m_pMainWidget(nullptr),
     m_pButtonProfile(nullptr),
     m_pWidgetDownload(nullptr),
-    m_printData(new printdata),
     m_savePortal(QString()),
     m_isMaximized(false),
-    m_saveAction(0)
+    m_saveAction(0),
+    m_printData(nullptr)
 {
     setObjectName("MainWindow");
     m_pMainPanel = createMainPanel(this);
@@ -121,7 +126,8 @@ CMainWindow::CMainWindow(const QRect &rect) :
 
 CMainWindow::~CMainWindow()
 {
-    delete m_printData, m_printData = nullptr;
+    if (m_printData)
+        delete m_printData, m_printData = nullptr;
 }
 
 /** Public **/
@@ -210,11 +216,7 @@ bool CMainWindow::pointInTabs(const QPoint& pt)
 {
     QRect _rc_title(m_pMainPanel->geometry());
     _rc_title.setHeight(tabWidget()->tabBar()->height());
-//#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
-#ifdef Q_OS_LINUX
     _rc_title.moveTop(1);
-#endif
-//#endif
     return _rc_title.contains(m_pMainPanel->mapFromGlobal(pt));
 }
 
@@ -226,7 +228,8 @@ bool CMainWindow::holdView(int id) const
 void CMainWindow::applyTheme(const std::wstring& theme)
 {
     CWindowPlatform::applyTheme(theme);
-    m_pMainPanel->setProperty("uitheme", QString::fromStdWString(theme));
+    m_pMainPanel->setProperty("uitheme", QString::fromStdWString(AscAppManager::themes().themeActualId(theme)));
+    m_pMainPanel->setProperty("uithemetype", AscAppManager::themes().current().stype());
     for (int i(m_pTabs->count()); !(--i < 0);) {
         CAscTabData& _doc = *m_pTabs->panel(i)->data();
         if ( _doc.isViewType(cvwtEditor) && !_doc.closed() ) {
@@ -240,7 +243,7 @@ void CMainWindow::applyTheme(const std::wstring& theme)
         foreach (auto btn, m_pTopButtons)
             btn->style()->polish(btn);
     }
-    m_pTabs->applyUITheme(theme);
+    m_pTabs->applyUITheme(AscAppManager::themes().themeActualId(theme));
     m_pMainPanel->style()->polish(m_pMainPanel);
     m_pMainPanel->update();
 
@@ -261,15 +264,7 @@ void CMainWindow::focus()
 
 void CMainWindow::onCloseEvent()
 {
-    if (windowState() != Qt::WindowFullScreen && isVisible()) {
-        GET_REGISTRY_USER(reg_user)
-        if (isMaximized()) {
-            reg_user.setValue("maximized", true);
-        } else {
-            reg_user.remove("maximized");
-            reg_user.setValue("position", normalGeometry());
-        }
-    }
+    CWindowBase::saveWindowState();
     AscAppManager::closeMainWindow();
 }
 
@@ -346,7 +341,9 @@ QWidget* CMainWindow::createMainPanel(QWidget *parent)
 {
     QWidget *mainPanel = new QWidget(parent);
     mainPanel->setObjectName("mainPanel");
-    mainPanel->setProperty("uitheme", QString::fromStdWString(AscAppManager::themes().current().id()));
+//    mainPanel->setProperty("uitheme", QString::fromStdWString(AscAppManager::themes().current().originalId()));
+//    mainPanel->setProperty("uithemetype", AscAppManager::themes().current().stype());
+
     QGridLayout *_pMainGridLayout = new QGridLayout(mainPanel);
     _pMainGridLayout->setSpacing(0);
     _pMainGridLayout->setObjectName(QString::fromUtf8("mainGridLayout"));
@@ -403,7 +400,7 @@ QWidget* CMainWindow::createMainPanel(QWidget *parent)
     m_pTabs->activate(false);
     m_pTabs->applyUITheme(AscAppManager::themes().current().id());
 
-    connect(tabBar(), SIGNAL(currentChanged(int)), this, SLOT(onTabChanged(int)));
+    connect(tabWidget(), SIGNAL(currentChanged(int)), this, SLOT(onTabChanged(int)));
     connect(tabBar(), SIGNAL(tabBarClicked(int)), this, SLOT(onTabClicked(int)));
     connect(tabBar(), SIGNAL(tabCloseRequested(int)), this, SLOT(onTabCloseRequest(int)));
     connect(m_pTabs, &CAscTabWidget::editorInserted, bind(&CMainWindow::onTabsCountChanged, this, _2, _1, 1));
@@ -539,7 +536,20 @@ void CMainWindow::onEditorAllowedClose(int uid)
 
 void CMainWindow::onTabChanged(int index)
 {
-    Q_UNUSED(index)
+    QString title("");
+    if (index > -1) {
+        auto _panel = m_pTabs->panel(index);
+        if (_panel)
+            title = _panel->data()->title();
+    } else {
+        ((QCefView *)m_pMainWidget)->setFocusToCef();
+    }
+
+    if (title != windowTitle()) {
+        QTimer::singleShot(100, this, [=]() {
+            setWindowTitle(title);
+        });
+    }
 
 #ifndef __DONT_WRITE_IN_APP_TITLE
     QLabel * title = (QLabel *)m_boxTitleBtns->layout()->itemAt(0)->widget();
@@ -1046,6 +1056,13 @@ void CMainWindow::goStart()
 
 void CMainWindow::onDocumentPrint(void * opts)
 {
+#ifdef __OS_WIN_XP
+    if (QPrinterInfo::availablePrinterNames().size() == 0) {
+        CMessage::info(TOP_NATIVE_WINDOW_HANDLE, tr("There are no printers available"));
+        return;
+    }
+#endif
+
     static bool printInProcess = false;
     if (!printInProcess)
         printInProcess = true; else
@@ -1062,7 +1079,9 @@ void CMainWindow::onDocumentPrint(void * opts)
         currentPage = pData->get_CurrentPage();
 
     if (pView && !(pagesCount < 1)) {
-//#ifdef _WIN32
+        if (!m_printData)
+            m_printData = new printdata();
+
         NSEditorApi::CAscMenuEvent * pEvent;
         QAscPrinterContext * pContext = m_printData->_printer_info.isNull() ?
                     new QAscPrinterContext() : new QAscPrinterContext(m_printData->_printer_info);
@@ -1071,80 +1090,44 @@ void CMainWindow::onDocumentPrint(void * opts)
         printer->setOutputFileName("");
         printer->setFromTo(1, pagesCount);
 
-/*#ifdef _WIN32
-        //CPrintDialogWinWrapper wrapper(printer, TOP_NATIVE_WINDOW_HANDLE);
-        //QPrintDialog * dialog = wrapper.q_dialog();
-#else*/
-        QPrintDialog * dialog =  new QPrintDialog(printer, this);
-//#endif // _WIN32
+#ifdef _WIN32
+        CPrintDialog * dialog =  new CPrintDialog(printer, this);
+#else
+# ifdef FILEDIALOG_DONT_USE_NATIVEDIALOGS
+        CPrintDialog * dialog =  new CPrintDialog(printer, this);
+# else
+        GtkPrintDialog * dialog = new GtkPrintDialog(printer, this);
+# endif
+#endif // _WIN32
 
         dialog->setWindowTitle(tr("Print Document"));
-        dialog->setEnabledOptions(QPrintDialog::PrintPageRange | QPrintDialog::PrintCurrentPage | QPrintDialog::PrintToFile);
-        if (!(currentPage < 0))
-            currentPage++, dialog->setOptions(dialog->options() | QPrintDialog::PrintCurrentPage);
+        dialog->setEnabledOptions(QPrintDialog::PrintPageRange | QPrintDialog::PrintToFile);
+        if (!(currentPage < 0)) {
+            currentPage++;
+            dialog->setEnabledOptions(dialog->enabledOptions() | QPrintDialog::PrintCurrentPage);
+            dialog->setOptions(dialog->options() | QPrintDialog::PrintCurrentPage);
+        }
         dialog->setPrintRange(m_printData->_print_range);
 
-        int start = -1, finish = -1;
-/*#ifdef _WIN32
-        //int res = wrapper.showModal();
-#else*/
-        int res = dialog->exec();
-//#endif
-        if (res == QDialog::Accepted) {
+        if (dialog->exec() == QDialog::Accepted) {
             m_printData->_printer_info = QPrinterInfo::printerInfo(printer->printerName());
             m_printData->_print_range = dialog->printRange();
+            QVector<PageRanges> page_ranges;
 
             switch(dialog->printRange()) {
-            case QPrintDialog::AllPages: start = 1, finish = pagesCount; break;
+            case QPrintDialog::AllPages:
             case QPrintDialog::PageRange:
-                start = dialog->fromPage(), finish = dialog->toPage(); break;
-            case QPrintDialog::Selection: break;
-            case QPrintDialog::CurrentPage: start = currentPage, finish = currentPage; break;
+                page_ranges = dialog->getPageRanges();
+                break;
+            case QPrintDialog::Selection:
+                page_ranges.append(PageRanges(-1, -1));
+                break;
+            case QPrintDialog::CurrentPage:
+                page_ranges.append(PageRanges(currentPage, currentPage));
+                break;
             }
 
-            if (!(start < 0) || !(finish < 0)) {
-                start < 1 && (start = 1);
-                finish < 1 && (finish = 1);
-                finish < start && (finish = start);
-
-                if ( pContext->BeginPaint() ) {
-#if defined(_WIN32)
-                    //CPrintProgress progressDlg((HWND)parentWidget()->winId());
-                    CPrintProgress progressDlg(TOP_NATIVE_WINDOW_HANDLE);
-#else
-                    CPrintProgress progressDlg(qobject_cast<QWidget *>(this));
-#endif
-                    progressDlg.startProgress();
-
-                    CAscPrintPage * pData;
-                    uint count = finish - start;
-                    for (; !(start > finish); ++start) {
-                        pContext->AddRef();
-
-                        progressDlg.setProgress(count - (finish - start) + 1, count + 1);
-                        qApp->processEvents();
-
-                        pData = new NSEditorApi::CAscPrintPage();
-                        pData->put_Context(pContext);
-                        pData->put_Page(start - 1);
-
-                        pEvent = new CAscMenuEvent(ASC_MENU_EVENT_TYPE_CEF_PRINT_PAGE);
-                        pEvent->m_pData = pData;
-
-                        pView->Apply(pEvent);
-//                        RELEASEOBJECT(pData)
-//                        RELEASEOBJECT(pEvent)
-
-                        if (progressDlg.isRejected())
-                            break;
-
-                        start < finish && printer->newPage();
-                    }
-                    pContext->EndPaint();
-                }
-            } else {
-                // TODO: show error message
-            }
+            CEditorTools::print({pView, pContext, &page_ranges, this});
         }
 
         pContext->Release();
@@ -1301,11 +1284,9 @@ void CMainWindow::updateScalingFactor(double dpiratio)
             btn->setFixedSize(small_btn_size);
     }*/
     m_pButtonMain->setFixedSize(int(BUTTON_MAIN_WIDTH * dpiratio), int(TITLE_HEIGHT * dpiratio));
-    const QString _tabs_stylesheets = ":/sep-styles/tabbar@" + QString::number(dpiratio) + "x.qss";
-    QFile styleFile(_tabs_stylesheets);
-    if (!styleFile.open(QFile::ReadOnly)) return;
-    const QString _style = QString(styleFile.readAll());
-    styleFile.close();
+    const std::string _tabs_stylesheets = ":/sep-styles/tabbar@" + QString::number(dpiratio).toStdString() + "x.qss";
+    std::vector<std::string> _files{_tabs_stylesheets, ":/themes/theme-contrast-dark.qss"};
+    QString _style = Utils::readStylesheets(&_files);
     m_pTabBarWrapper->applyTheme(_style);
     m_pTabs->setStyleSheet(_style);
     m_pTabs->updateScalingFactor(dpiratio);
@@ -1357,6 +1338,11 @@ bool CMainWindow::holdUrl(const QString& url, AscEditorType type) const
         return !(m_pTabs->tabIndexByUrl(url) < 0);
     }
     return false;
+}
+
+int CMainWindow::startPanelId()
+{
+    return ((QCefView *)m_pMainWidget)->GetCefView()->GetId();
 }
 
 CAscTabWidget * CMainWindow::tabWidget()

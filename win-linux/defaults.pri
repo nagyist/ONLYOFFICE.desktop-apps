@@ -82,6 +82,7 @@ HEADERS += \
     $$PWD/src/components/csvgpushbutton.h \
     $$PWD/src/components/celipsislabel.h \
     $$PWD/src/components/cfullscrwidget.h \
+    $$PWD/src/components/cprintdialog.h \
     $$PWD/src/version.h \
     $$PWD/src/defines.h \
     $$PWD/src/ccefeventstransformer.h \
@@ -128,6 +129,7 @@ SOURCES += \
     $$PWD/src/components/csvgpushbutton.cpp \
     $$PWD/src/components/celipsislabel.cpp \
     $$PWD/src/components/cfullscrwidget.cpp \
+    $$PWD/src/components/cprintdialog.cpp \
     #$$PWD/src/csplash.cpp \
     $$PWD/src/main.cpp \
     $$PWD/src/ccefeventstransformer.cpp \
@@ -168,10 +170,12 @@ ENV_PRODUCT_VERSION = $$(PRODUCT_VERSION)
                VER_PRODUCT_VERSION_COMMAS=$$replace(FULL_PRODUCT_VERSION, \., ",")
 }
 
-CMD_IN_HELP_URL = $$join(HELPURL,,\\\",\\\")
+CMD_IN_HELP_URL = $$join(URL_WEBAPPS_HELP,,\\\",\\\")
 !isEmpty(CMD_IN_HELP_URL) {
-    DEFINES += URL_WEBAPPS_HELP=CMD_IN_HELP_URL
+    DEFINES += URL_WEBAPPS_HELP=$$CMD_IN_HELP_URL
     message(webapps help url: $$CMD_IN_HELP_URL)
+} else {
+    message(no webapps help url found)
 }
 
 PLATFORM_BUILD=$$CORE_BUILDS_PLATFORM_PREFIX
@@ -197,22 +201,23 @@ core_linux {
                 #$$PWD/src/windows/platform_linux/gtk_addon.h \
                 $$PWD/src/windows/platform_linux/cwindowplatform.h \
                 $$PWD/src/platform_linux/cdialogopenssl.h \
-                $$PWD/src/platform_linux/cdialogcertificateinfo.h
+                $$PWD/src/platform_linux/cdialogcertificateinfo.h \
+                $$PWD/src/platform_linux/xdgdesktopportal.h \
+                $$PWD/src/platform_linux/gtkfilechooser.h \
+                $$PWD/src/platform_linux/gtkprintdialog.h
 
     SOURCES +=  $$PWD/src/windows/platform_linux/cx11decoration.cpp \
                 #$$PWD/src/windows/platform_linux/gtk_addon.cpp \
                 #$$PWD/src/windows/platform_linux/cx11caption.cpp \
                 $$PWD/src/windows/platform_linux/cwindowplatform.cpp \
                 $$PWD/src/platform_linux/cdialogopenssl.cpp \
-                $$PWD/src/platform_linux/cdialogcertificateinfo.cpp
-
-    contains(DEFINES, XDG_DESKTOP_PORTAL_KDE) {
-        HEADERS += $$PWD/src/platform_linux/kdefiledialog.h
-        SOURCES += $$PWD/src/platform_linux/kdefiledialog.cpp
-    }
+                $$PWD/src/platform_linux/cdialogcertificateinfo.cpp \
+                $$PWD/src/platform_linux/xdgdesktopportal.cpp \
+                $$PWD/src/platform_linux/gtkfilechooser.cpp \
+                $$PWD/src/platform_linux/gtkprintdialog.cpp
 
     CONFIG += link_pkgconfig
-    PKGCONFIG += glib-2.0 gtk+-3.0 atk
+    PKGCONFIG += glib-2.0 gtk+-3.0 atk dbus-1 gtk+-unix-print-3.0
     LIBS += -lX11
 
     LIBS += $$CORE_3DPARTY_PATH/icu/$$PLATFORM_BUILD/build/libicuuc.so.58
@@ -228,10 +233,12 @@ core_windows {
 
     HEADERS += $$PWD/src/windows/platform_win/cwindowplatform.h \
                $$PWD/src/windows/platform_win/csnap.h \
-               $$PWD/src/windows/platform_win/caption.h
+               $$PWD/src/windows/platform_win/caption.h \
+               $$PWD/src/platform_win/filechooser.h
 
     SOURCES += $$PWD/src/windows/platform_win/cwindowplatform.cpp \
-               $$PWD/src/windows/platform_win/csnap.cpp
+               $$PWD/src/windows/platform_win/csnap.cpp \
+               $$PWD/src/platform_win/filechooser.cpp
 
 
     LIBS += -lwininet \

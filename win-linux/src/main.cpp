@@ -49,6 +49,9 @@ int main( int argc, char *argv[] )
     WCHAR * cm_line = GetCommandLine();
     InputArgs::init(cm_line);
 #else
+    qputenv("LC_ALL", "en_US.UTF8");
+    qputenv("QT_QPA_PLATFORM", "xcb");
+    qputenv("GDK_BACKEND", "x11");
     InputArgs::init(argc, argv);
     WindowHelper::initEnvInfo();
 #endif
@@ -84,6 +87,11 @@ int main( int argc, char *argv[] )
         manager->m_oSettings.country = Utils::systemLocationCode().toStdString();
     };
 
+    if ( InputArgs::contains(L"--geometry=default") ) {
+        GET_REGISTRY_USER(reg_user)
+        reg_user.remove("maximized");
+        reg_user.remove("position");
+    }
     if ( InputArgs::contains(L"--version") ) {
         qWarning() << VER_PRODUCTNAME_STR << "ver." << VER_FILEVERSION_STR;
         return 0;
@@ -102,7 +110,7 @@ int main( int argc, char *argv[] )
         if (_args.size() > 0) {
             foreach (auto w_arg, _args) {
                 const QString arg = QString::fromStdWString(w_arg);
-                if (arg.startsWith("--new:") )
+                if ( arg.startsWith("--new:") )
                     _out_args.append(arg).append(";");
                 else
                 if ( arg.mid(0,2) != "--" )
