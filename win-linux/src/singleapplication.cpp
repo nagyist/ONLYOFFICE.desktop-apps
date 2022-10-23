@@ -69,7 +69,7 @@
 #endif
 
 #define SEND_DELAY_MS 50
-#define RETRIES_DELAY 300
+#define RETRIES_DELAY 50
 #define RETRIES_COUNT 10
 #define BUFFSIZE 1024
 
@@ -176,26 +176,26 @@ uchar SingleApplication::SingleApplicationPrv::singleton_connect()
                         QThread::currentThread()->msleep(RETRIES_DELAY);
                         continue;
                     }
-                    printf("Could not connect to socket\n");
-                    fflush(stdout);
+                    //printf("Could not connect to socket\n");
+                    //fflush(stdout);
                     QThread::currentThread()->msleep(RETRIES_DELAY);
                     continue;
                 }
-                printf("Daemon is already running\n");
-                fflush(stdout);
+                //printf("Daemon is already running\n");
+                //fflush(stdout);
                 socket_fd = tmpd;
                 return Type::CLIENT;
             }
-            printf("Could not bind to socket\n");
-            fflush(stdout);
+            //printf("Could not bind to socket\n");
+            //fflush(stdout);
             QThread::currentThread()->msleep(RETRIES_DELAY);
             continue;
         }
         QThread::currentThread()->msleep(RETRIES_DELAY);
     } while (retries-- > 0);
 
-    printf("Could neither connect to an existing daemon nor become one\n");
-    fflush(stdout);
+    //printf("Could neither connect to an existing daemon nor become one\n");
+    //fflush(stdout);
     close_socket(tmpd);
     return Type::UNDEF;
 }
@@ -253,12 +253,12 @@ void SingleApplication::SingleApplicationPrv::readMessage()
 #else
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
 #endif
-                printf("Error while accessing socket\n");
-                fflush(stdout);
+                //printf("Error while accessing socket\n");
+                //fflush(stdout);
                 // FAILURE
             }
-            printf("No further client_args in socket\n");
-            fflush(stdout);
+            //printf("No further client_args in socket\n");
+            //fflush(stdout);
 
         } else {
             QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection,
@@ -269,8 +269,8 @@ void SingleApplication::SingleApplicationPrv::readMessage()
             // SUCCESS
         }
     }
-    printf("Dropped out of daemon loop\n");
-    fflush(stdout);
+    //printf("Dropped out of daemon loop\n");
+    //fflush(stdout);
 }
 
 void SingleApplication::SingleApplicationPrv::sendSignal(const QString& msg)
@@ -293,8 +293,8 @@ SingleApplication::SingleApplication(int &argc, char *argv[]) :
     case SingleApplicationPrv::Type::CLIENT:
         break;
     default:
-        printf("Identification error!\n");
-        // FAILURE
+        //printf("Identification error!\n");
+        break;
     }
 }
 
