@@ -38,8 +38,6 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
-#include <QThread>
-#include <QEventLoop>
 #include <QtConcurrent/QtConcurrent>
 
 #ifdef _WIN32
@@ -70,17 +68,10 @@
   typedef int SOCKET;
 #endif
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-# include <QtCore/QRandomGenerator>
-#else
-# include <QtCore/QDateTime>
-# include <limits>
-#endif
-
-#define READ_INTERVAL_MS 10
 #define SEND_DELAY_MS 100
 #define RETRIES_DELAY 300
 #define RETRIES_COUNT 10
+#define BUFFSIZE 4096
 
 
 class SingleApplication::SingleApplicationPrv : public QObject
@@ -95,7 +86,6 @@ public:
     };
     uchar singleton_connect();
     static void handle_signal(int signal);
-    static void randomSleep();
     void startPrimary();
     void readMessage();
 
@@ -228,16 +218,6 @@ void SingleApplication::SingleApplicationPrv::handle_signal(int signal)
     }
 }
 
-void SingleApplication::SingleApplicationPrv::randomSleep()
-{
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-    QThread::msleep(QRandomGenerator::global()->bounded(8u, 18u));
-#else
-    qsrand(QDateTime::currentMSecsSinceEpoch() % std::numeric_limits<uint>::max());
-    QThread::msleep(qrand() % 11 + 8);
-#endif
-}
-
 void SingleApplication::SingleApplicationPrv::startPrimary()
 {
 #ifdef _WIN32
@@ -266,59 +246,31 @@ void SingleApplication::SingleApplicationPrv::readMessage()
 {
     std::vector<uint8_t> rcvBuf; // Allocate a receive buffer
     std::string receivedString;
-    uint32_t len;
 
     while (run) {
-        int ret_len = recv(socket_fd, (char*)&len, (int)sizeof(uint32_t), 0); // Receive the message length
-        if (ret_len != (int)sizeof(uint32_t)) {
+        rcvBuf.resize(BUFFSIZE, 0x00);
+        int ret_data = recv(socket_fd, (char*)&(rcvBuf[0]), BUFFSIZE, 0); // Receive the string data
+        if (ret_data != BUFFSIZE) {
 #ifdef _WIN32
-            if (WSAGetLastError() == WSAEINTR) {
+            if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
 #else
-            if (errno == 0 || errno == EINTR) {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
 #endif
-                printf("Shutdown socket\n");
+                printf("Error while accessing socket\n");
                 fflush(stdout);
-            } else {
-#ifdef _WIN32
-                if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
-#else
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-#endif
-                    printf("Error while accessing socket\n");
-                    fflush(stdout);
-                    // FAILURE
-                }
-                printf("No further client_args in socket\n");
-                fflush(stdout);
+                // FAILURE
             }
+            printf("No further client_args in socket\n");
+            fflush(stdout);
 
         } else {
-            len = ntohl(len); // Ensure host system byte order with the necessary size
-            rcvBuf.resize(len, 0x00);
-            int ret_data = recv(socket_fd, (char*)&(rcvBuf[0]), (int)len, 0); // Receive the string data
-            if (ret_data != (int)len) {
-#ifdef _WIN32
-                if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
-#else
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-#endif
-                    printf("Error while accessing socket\n");
-                    fflush(stdout);
-                    // FAILURE
-                }
-                printf("No further client_args in socket\n");
-                fflush(stdout);
-
-            } else {
-                receivedString.assign((char*)&(rcvBuf[0]), rcvBuf.size()); // assign buffered data to a string
-                QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(receivedString)));
-                QCoreApplication::processEvents();
-                printf("Received client arg: %s\n", receivedString.c_str());
-                fflush(stdout);
-                // SUCCESS
-            }
+            receivedString.assign((char*)&(rcvBuf[0]), rcvBuf.size()); // assign buffered data to a string
+            QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(receivedString)));
+            QCoreApplication::processEvents();
+            printf("Received client arg: %s\n", receivedString.c_str());
+            fflush(stdout);
+            // SUCCESS
         }
-        QThread::currentThread()->msleep(READ_INTERVAL_MS);
     }
     printf("Dropped out of daemon loop\n");
     fflush(stdout);
@@ -334,25 +286,19 @@ SingleApplication::SingleApplication(int &argc, char **argv) :
     QApplication(argc, argv),
     pimpl(new SingleApplicationPrv(this))
 {
-    QEventLoop *evloop = new QEventLoop;
-    future = QtConcurrent::run(
-            [this, evloop]() mutable {
-        pimpl->instType = pimpl->singleton_connect();
-        evloop->exit(0);
-        switch (pimpl->instType) {
-        case SingleApplicationPrv::Type::DAEMON:
+    pimpl->instType = pimpl->singleton_connect();
+    switch (pimpl->instType) {
+    case SingleApplicationPrv::Type::DAEMON:
+        future = QtConcurrent::run([=]() {
             pimpl->startPrimary();
-            break;
-        case SingleApplicationPrv::Type::CLIENT:
-            break;
-        default:
-            printf("Identification error!\n");
-            // FAILURE
-        }
-
-    });
-    evloop->exec();
-    evloop->deleteLater();
+        });
+        break;
+    case SingleApplicationPrv::Type::CLIENT:
+        break;
+    default:
+        printf("Identification error!\n");
+        // FAILURE
+    }
 }
 
 SingleApplication::~SingleApplication()
@@ -381,25 +327,21 @@ SingleApplication::~SingleApplication()
 
 bool SingleApplication::sendMessage(const QString &message)
 {
-    if (pimpl->instType != SingleApplicationPrv::Type::CLIENT)
+    if (message.isEmpty() || pimpl->instType != SingleApplicationPrv::Type::CLIENT)
         return false;
-
-    std::string client_arg(message.toStdString());
-    uint32_t len = (uint32_t)htonl((u_long)client_arg.size());
-    if (len == 0)
+    if (message.length() > BUFFSIZE - 1)
         return false;
-
     QThread::msleep(SEND_DELAY_MS);
-    SingleApplicationPrv::randomSleep();
+    QString msg(message);
+    msg.resize(BUFFSIZE - 1, '0');
+    std::string client_arg(msg.toStdString());
 #ifdef _WIN32
-    int ret_len = send(pimpl->socket_fd, (char*)&len, (int)sizeof(uint32_t), 0); // Send the data length
-    int ret_data = send(pimpl->socket_fd, client_arg.c_str(), (int)client_arg.size(), 0); // Send the string
+    int ret_data = send(pimpl->socket_fd, client_arg.c_str(), BUFFSIZE, 0); // Send the string
 #else
-    int ret_len = (int)send(pimpl->socket_fd, &len, sizeof(uint32_t), MSG_CONFIRM); // Send the data length
-    int ret_data =(int)send(pimpl->socket_fd, client_arg.c_str(), client_arg.size(), MSG_CONFIRM); // Send the string
+    int ret_data =(int)send(pimpl->socket_fd, client_arg.c_str(), BUFFSIZE, MSG_CONFIRM); // Send the string
 #endif
-    if (ret_len != (int)sizeof(uint32_t) || ret_data != (int)client_arg.size()) {
-        if (ret_len < 0 || ret_data < 0)
+    if (ret_data != BUFFSIZE) {
+        if (ret_data < 0)
             printf("Could not send device address to daemon!\n");
         else
             printf("Could not send device address to daemon completely!\n");
