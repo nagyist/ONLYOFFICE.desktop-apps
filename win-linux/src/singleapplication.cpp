@@ -68,10 +68,10 @@
   typedef int SOCKET;
 #endif
 
-#define SEND_DELAY_MS 100
+#define SEND_DELAY_MS 50
 #define RETRIES_DELAY 300
 #define RETRIES_COUNT 10
-#define BUFFSIZE 4096
+#define BUFFSIZE 1024
 
 
 class SingleApplication::SingleApplicationPrv : public QObject
