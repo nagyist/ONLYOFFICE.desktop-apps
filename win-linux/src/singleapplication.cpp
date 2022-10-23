@@ -335,6 +335,7 @@ bool SingleApplication::sendMessage(const QString &message)
     QString msg(message);
     msg.resize(BUFFSIZE - 1, '0');
     std::string client_arg(msg.toStdString());
+    client_arg.replace(message.length(), 1, "\0");
 #ifdef _WIN32
     int ret_data = send(pimpl->socket_fd, client_arg.c_str(), BUFFSIZE, 0); // Send the string
 #else
