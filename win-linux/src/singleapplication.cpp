@@ -79,7 +79,7 @@ class SingleApplication::SingleApplicationPrv : public QObject
     Q_OBJECT
 public:
     SingleApplicationPrv(SingleApplication *owner);
-    virtual ~SingleApplicationPrv();
+    ~SingleApplicationPrv();
 
     enum Type : uchar {
         DAEMON, CLIENT, UNDEF
@@ -244,12 +244,9 @@ void SingleApplication::SingleApplicationPrv::startPrimary()
 
 void SingleApplication::SingleApplicationPrv::readMessage()
 {
-    std::vector<uint8_t> rcvBuf; // Allocate a receive buffer
-    std::string receivedString;
-
     while (run) {
-        rcvBuf.resize(BUFFSIZE, 0x00);
-        int ret_data = recv(socket_fd, (char*)&(rcvBuf[0]), BUFFSIZE, 0); // Receive the string data
+        char rcvBuf[BUFFSIZE] = {0};
+        int ret_data = recv(socket_fd, rcvBuf, BUFFSIZE, 0); // Receive the string data
         if (ret_data != BUFFSIZE) {
 #ifdef _WIN32
             if (WSAGetLastError() != WSATRY_AGAIN && WSAGetLastError() != WSAEWOULDBLOCK) {
@@ -264,10 +261,10 @@ void SingleApplication::SingleApplicationPrv::readMessage()
             fflush(stdout);
 
         } else {
-            receivedString.assign((char*)&(rcvBuf[0]), rcvBuf.size()); // assign buffered data to a string
-            QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(receivedString)));
+            QMetaObject::invokeMethod(this, "sendSignal", Qt::QueuedConnection,
+                                      Q_ARG(QString, QString::fromLocal8Bit(rcvBuf, strlen(rcvBuf))));
             QCoreApplication::processEvents();
-            printf("Received client arg: %s\n", receivedString.c_str());
+            printf("Received client arg: %s\n", rcvBuf);
             fflush(stdout);
             // SUCCESS
         }
@@ -282,7 +279,7 @@ void SingleApplication::SingleApplicationPrv::sendSignal(const QString& msg)
 }
 
 
-SingleApplication::SingleApplication(int &argc, char **argv) :
+SingleApplication::SingleApplication(int &argc, char *argv[]) :
     QApplication(argc, argv),
     pimpl(new SingleApplicationPrv(this))
 {
@@ -325,21 +322,19 @@ SingleApplication::~SingleApplication()
     delete pimpl;
 }
 
-bool SingleApplication::sendMessage(const QString &message)
+bool SingleApplication::sendMessage(QString msg)
 {
-    if (message.isEmpty() || pimpl->instType != SingleApplicationPrv::Type::CLIENT)
+    if (msg.isEmpty() || pimpl->instType != SingleApplicationPrv::Type::CLIENT)
         return false;
-    if (message.length() > BUFFSIZE - 1)
+    if (msg.length() > BUFFSIZE - 1)
         return false;
     QThread::msleep(SEND_DELAY_MS);
-    QString msg(message);
-    msg.resize(BUFFSIZE - 1, '0');
-    std::string client_arg(msg.toStdString());
-    client_arg.replace(message.length(), 1, "\0");
+    char client_arg[BUFFSIZE] = {0};
+    memcpy(client_arg, msg.toLocal8Bit().data(), msg.length());
 #ifdef _WIN32
-    int ret_data = send(pimpl->socket_fd, client_arg.c_str(), BUFFSIZE, 0); // Send the string
+    int ret_data = send(pimpl->socket_fd, client_arg, BUFFSIZE, 0); // Send the string
 #else
-    int ret_data =(int)send(pimpl->socket_fd, client_arg.c_str(), BUFFSIZE, MSG_CONFIRM); // Send the string
+    int ret_data =(int)send(pimpl->socket_fd, client_arg, BUFFSIZE, MSG_CONFIRM); // Send the string
 #endif
     if (ret_data != BUFFSIZE) {
         if (ret_data < 0)
@@ -348,8 +343,7 @@ bool SingleApplication::sendMessage(const QString &message)
             printf("Could not send device address to daemon completely!\n");
         return false;
     }
-
-    printf("Sended data to daemon: %s\n", client_arg.c_str());
+    printf("Sended data to daemon: %s\n", msg.toLocal8Bit().data());
     return true;
 }
 
