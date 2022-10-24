@@ -44,7 +44,7 @@ public:
     explicit SingleApplication(int &argc, char *argv[]);
     ~SingleApplication();
 
-    bool sendMessage(QString message);
+    bool sendMessage(const QString &message);
     bool isPrimary();
 
 signals:

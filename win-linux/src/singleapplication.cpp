@@ -323,7 +323,7 @@ SingleApplication::~SingleApplication()
     delete pimpl;
 }
 
-bool SingleApplication::sendMessage(QString msg)
+bool SingleApplication::sendMessage(const QString &msg)
 {
     if (msg.isEmpty() || pimpl->instType != SingleApplicationPrv::Type::CLIENT)
         return false;
