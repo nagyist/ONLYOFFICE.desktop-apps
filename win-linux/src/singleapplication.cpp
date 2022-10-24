@@ -112,7 +112,8 @@ SingleApplication::SingleApplicationPrv::~SingleApplicationPrv()
 
 uchar SingleApplication::SingleApplicationPrv::singleton_connect()
 {
-    SockAddr addr = {0};
+    SockAddr addr;
+    memset(&addr, 0, sizeof(SockAddr));
     int len = 0;
 #ifdef _WIN32
     WSADATA wsaData = {0};
