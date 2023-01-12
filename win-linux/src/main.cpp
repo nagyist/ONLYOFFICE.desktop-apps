@@ -43,6 +43,7 @@
 #include "chelp.h"
 #include "common/File.h"
 #include <QStyleFactory>
+#include <QFontDatabase>
 
 
 int main( int argc, char *argv[] )
@@ -135,6 +136,8 @@ int main( int argc, char *argv[] )
 
     app.setAttribute(Qt::AA_UseHighDpiPixmaps);
     app.setStyle(QStyleFactory::create("Fusion"));
+    QFontDatabase::addApplicationFont(":/res/fonts/libra_sans.ttf");
+    QFontDatabase::addApplicationFont(":/res/fonts/libra_sans-bold.ttf");
 
     /* the order is important */
     CApplicationCEF::Prepare(argc, argv);
