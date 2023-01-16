@@ -225,9 +225,15 @@ bool CWindowBase::event(QEvent *event)
        QHelpEvent *hlp = static_cast<QHelpEvent*>(event);
        QWidget *wgt = qApp->widgetAt(hlp->globalPos());
        if (wgt && !findChild<CToolTip*>()) {
-           auto tool_text = wgt->property("ToolTip").toString();
-           if (m_pMainPanel && !tool_text.isEmpty()) {
-               CToolTip *tool = new CToolTip(m_pMainPanel, tool_text, hlp->globalPos());
+           QString text("");
+           CTabBar *bar = dynamic_cast<CTabBar*>(wgt);
+           if (bar) {
+               int index = bar->tabAt(bar->mapFromGlobal(hlp->globalPos()));
+               text = bar->tabProperty(index, "ToolTip").toString();
+           } else
+               text = wgt->property("ToolTip").toString();
+           if (m_pMainPanel && !text.isEmpty()) {
+               CToolTip *tool = new CToolTip(m_pMainPanel, text, hlp->globalPos());
                connect(wgt, &QWidget::destroyed, tool, &CToolTip::deleteLater);
            }
        }
