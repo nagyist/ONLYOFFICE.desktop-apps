@@ -322,17 +322,17 @@ QPrintDialog QTabBar::tab:selected {
     padding: 0 15px;
 }
 
-QToolTip {
+#CToolTip>QLabel {
     min-height: 40px;
-    margin: -2px; /*bypass bug with tooltip background*/
-    padding-left: 8px; padding-right: 8px;
+    margin: 0px;
+    padding-left: 16px; padding-right: 16px;
     font-size: 16px;
-    border: 3px solid #c0c0c0;
-    border-radius: 8px;
+    border: 1px solid #c0c0c0;
+    border-radius: 7px;
 }
-#mainPanel[uitheme=theme-dark] QToolTip {
+#mainPanel[uitheme=theme-dark] #CToolTip>QLabel {
     border: 1px solid #666666;
 }
-#mainPanel[uitheme=theme-contrast-dark] QToolTip {
+#mainPanel[uitheme=theme-contrast-dark] #CToolTip>QLabel {
     border: 1px solid #696969;
 }
