@@ -44,7 +44,8 @@
 
 CToolTip::CToolTip(QWidget * parent, const QString &text,
                    const QPoint &pos) :
-    QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint),
+    QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint |
+            Qt::BypassWindowManagerHint),
     m_activated(false)
 {
     setAttribute(Qt::WA_TranslucentBackground);
