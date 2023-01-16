@@ -39,7 +39,7 @@
 #include <QLineF>
 
 #define FADE_TIMEOUT_MS 5000
-#define ANIMATION_DURATION_MS 180
+#define ANIMATION_DURATION_MS 150
 
 
 CToolTip::CToolTip(QWidget * parent, const QString &text,
@@ -48,7 +48,9 @@ CToolTip::CToolTip(QWidget * parent, const QString &text,
     m_activated(false)
 {
     setAttribute(Qt::WA_TranslucentBackground);
+//    setAttribute(Qt::WA_ShowWithoutActivating);
     setWindowModality(Qt::NonModal);
+    setFocusPolicy(Qt::NoFocus);
     setObjectName("CToolTip");
     QVBoxLayout *lut = new QVBoxLayout(this);
     setLayout(lut);
@@ -56,6 +58,8 @@ CToolTip::CToolTip(QWidget * parent, const QString &text,
     m_label = new QLabel(this);
     layout()->addWidget(m_label);
     m_label->setText(text);
+    QGraphicsOpacityEffect *grEffect = new QGraphicsOpacityEffect(this);
+    setGraphicsEffect(grEffect);
     QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(m_label);
     shadow->setBlurRadius(16.0);
     shadow->setColor(QColor(0, 0, 0, 80));
@@ -85,7 +89,7 @@ void CToolTip::showEvent(QShowEvent *event)
     QWidget::showEvent(event);
     if (!m_activated) {
         m_activated = true;
-//        showEffect(EffectType::Arise);
+        showEffect(EffectType::Arise);
         QTimer::singleShot(FADE_TIMEOUT_MS, this, [=]() {
             showEffect(EffectType::Fade);
         });
@@ -94,22 +98,19 @@ void CToolTip::showEvent(QShowEvent *event)
 
 void CToolTip::showEffect(const EffectType efType)
 {
+    QPropertyAnimation *anm = new QPropertyAnimation(graphicsEffect(), "opacity");
+    anm->setDuration(ANIMATION_DURATION_MS);
     if (efType == EffectType::Arise) {
-//        anm->setDuration(ANIMATION_DURATION_MS);
-//        anm->setStartValue(0);
-//        anm->setEndValue(1);
-//        anm->setEasingCurve(QEasingCurve::InCurve);
+        anm->setStartValue(0);
+        anm->setEndValue(1);
+        anm->setEasingCurve(QEasingCurve::InCurve);
     } else
     if (efType == EffectType::Fade) {
-        QGraphicsOpacityEffect *m_pGrEffect = new QGraphicsOpacityEffect(m_label);
-        m_label->setGraphicsEffect(m_pGrEffect);
-        QPropertyAnimation *anm = new QPropertyAnimation(m_pGrEffect, "opacity");
-        anm->setDuration(ANIMATION_DURATION_MS);
         anm->setStartValue(1);
         anm->setEndValue(0);
         connect(anm, &QPropertyAnimation::finished, this, [=](){
             deleteLater();
         });
-        anm->start(QPropertyAnimation::DeleteWhenStopped);
     }
+    anm->start(QPropertyAnimation::DeleteWhenStopped);
 }
