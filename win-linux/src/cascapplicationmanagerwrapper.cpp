@@ -32,7 +32,7 @@
 # include <io.h>
 # include <VersionHelpers.h>
 # include "platform_win/singleapplication.h"
-# if defined(_UPDMODULE) && !defined(__OS_WIN_XP)
+# ifdef _UPDMODULE
 #  include "platform_win/updatedialog.h"
 # endif
 #else
@@ -123,7 +123,10 @@ CAscApplicationManagerWrapper::~CAscApplicationManagerWrapper()
         m_pMainWindow->deleteLater();
 #endif
     }
-
+#if defined (_UPDMODULE) && defined (_WIN32)
+    // Start update installation
+    m_pUpdateManager->handleAppClose();
+#endif
 //    m_vecEditors.clear();
 }
 
@@ -1193,6 +1196,21 @@ void CAscApplicationManagerWrapper::gotoMainWindow(size_t src)
     });
 }
 
+void CAscApplicationManagerWrapper::closeAppWindows()
+{
+    APP_CAST(_app)
+
+    vector<size_t>::const_iterator it = _app.m_vecEditors.begin();
+    while ( it != _app.m_vecEditors.end() ) {
+        _app.closeQueue().enter(sWinTag{CLOSE_QUEUE_WIN_TYPE_EDITOR, size_t(*it)});
+        it++;
+    }
+
+    if ( _app.m_pMainWindow && _app.m_pMainWindow->isVisible() ) {
+        _app.closeQueue().enter(sWinTag{CLOSE_QUEUE_WIN_TYPE_MAIN, size_t(_app.m_pMainWindow)});
+    }
+}
+
 void CAscApplicationManagerWrapper::launchAppClose()
 {
     if ( canAppClose() ) {
@@ -1211,10 +1229,6 @@ void CAscApplicationManagerWrapper::launchAppClose()
                     AscAppManager::cancelClose();
             }
         } else {
-#if defined (_UPDMODULE) && defined (_WIN32)
-            // Start update installation
-            m_pUpdateManager->handleAppClose();
-#endif
             DestroyCefView(-1);
         }
     } else {
@@ -1964,10 +1978,11 @@ void CAscApplicationManagerWrapper::showUpdateMessage(bool error, bool updateExi
             QTimer::singleShot(100, this, [=](){
 # ifdef _WIN32
                 int result = WinDlg::showDialog(mainWindow()->handle(),
-                                    tr("A new version of ONLYOFFICE Desktop Editors is available!"),
-                                    tr("ONLYOFFICE Desktop Editors %1 is now available (you have %2). "
-                                       "Would you like to download it now?").arg(m_pUpdateManager->getVersion(),
-                                                                                QString::fromLatin1(VER_FILEVERSION_STR)),
+                                    tr("A new version of %1 is available!").arg(QString(WINDOW_NAME)),
+                                    tr("%1 %2 is now available (you have %3). "
+                                       "Would you like to download it now?").arg(QString(WINDOW_NAME),
+                                                                                m_pUpdateManager->getVersion(),
+                                                                                QString(VER_FILEVERSION_STR)),
                                     WinDlg::DlgBtns::mbSkipRemindDownload);
 
                 switch (result) {
@@ -2027,15 +2042,16 @@ void CAscApplicationManagerWrapper::showStartInstallMessage()
     gotoMainWindow();
     AscAppManager::sendCommandTo(0, "updates:download", "{\"progress\":\"done\"}");
     int result = WinDlg::showDialog(mainWindow()->handle(),
-                                    tr("A new version of ONLYOFFICE Desktop Editors is available!"),
-                                    tr("ONLYOFFICE Desktop Editors %1 is now downloaded (you have %2). "
-                                       "Would you like to install it now?").arg(m_pUpdateManager->getVersion(),
-                                                                                QString::fromLatin1(VER_FILEVERSION_STR)),
+                                    tr("A new version of %1 is available!").arg(QString(WINDOW_NAME)),
+                                    tr("%1 %2 is now downloaded (you have %3). "
+                                       "Would you like to install it now?").arg(QString(WINDOW_NAME),
+                                                                                m_pUpdateManager->getVersion(),
+                                                                                QString(VER_FILEVERSION_STR)),
                                     WinDlg::DlgBtns::mbSkipRemindSaveandinstall);
     switch (result) {
     case WinDlg::DLG_RESULT_INSTALL: {
         m_pUpdateManager->scheduleRestartForUpdate();
-        mainWindow()->close();
+        closeAppWindows();
         break;
     }
     case WinDlg::DLG_RESULT_SKIP: {
