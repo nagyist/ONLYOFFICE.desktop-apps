@@ -127,7 +127,7 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
         list<wstring> delList;
         for (auto &appFile : appVec) {
             auto it_appFile = std::find(updVec.begin(), updVec.end(), appFile);
-            if (it_appFile != updVec.end() && appFile != DAEMON_NAME
+            if (it_appFile == updVec.end() && appFile != DAEMON_NAME
                     && appFile != L"/unins000.dat" && appFile != L"/unins000.exe")
                 delList.push_back(appFile);
         }
