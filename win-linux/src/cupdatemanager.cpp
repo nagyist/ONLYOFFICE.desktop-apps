@@ -33,18 +33,15 @@
 #include "cupdatemanager.h"
 #include <QApplication>
 #include <QSettings>
-#include <QDir>
 #include <QDirIterator>
-#include <QUuid>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
-#include <QtConcurrent/QtConcurrent>
-#include <QDebug>
 #include <algorithm>
 #include <iostream>
 #include <functional>
 #include <vector>
+#include <sstream>
 #include "utils.h"
 #include "defines.h"
 #include "version.h"
@@ -52,11 +49,15 @@
 #include "components/cmessage.h"
 #include "cascapplicationmanagerwrapper.h"
 #ifdef Q_OS_WIN
-# include <QProcess>
 # include <QCryptographicHash>
+# include <Windows.h>
 # include "platform_win/updatedialog.h"
+# define DAEMON_NAME "/update-daemon.exe"
+# define SENDER_PORT   12011
+# define RECEIVER_PORT 12010
 #endif
 
+//#define CHECK_DIRECTORY
 #define CHECK_ON_STARTUP_MS 9000
 #define CMD_ARGUMENT_CHECK_URL L"--updates-appcast-url"
 #ifndef URL_APPCAST_UPDATES
@@ -79,10 +80,18 @@ auto currentArch()->QString
 #endif
 }
 
+auto criticalMsg(const QString &msg)
+{
+    wstring lpText = msg.toStdWString();
+    MessageBoxW(NULL, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
+}
+
 class CUpdateManager::DialogSchedule : public QObject
 {
+    Q_OBJECT
 public:
     DialogSchedule(QObject *owner);
+public slots:
     void addToSchedule(const QString &method);
 
 private:
@@ -126,11 +135,93 @@ auto destroyStartupTimer(QTimer* &timer)->void
     }
 }
 
+auto getFileHash(const QString &fileName)->QByteArray
+{
+    QFile file(fileName);
+    if (file.open(QFile::ReadOnly)) {
+        QCryptographicHash hash(QCryptographicHash::Md5);
+        if (hash.addData(&file)) {
+            file.close();
+            return hash.result();
+        }
+        file.close();
+    }
+    return QByteArray();
+}
+
+auto runProcess(const WCHAR *fileName, WCHAR *args)->BOOL
+{
+//    PROCESS_INFORMATION ProcessInfo;
+//    STARTUPINFO StartupInfo;
+//    ZeroMemory(&StartupInfo, sizeof(StartupInfo));
+//    StartupInfo.cb = sizeof(StartupInfo);
+//    if (CreateProcessW(fileName, args, NULL, NULL, FALSE,
+//                       CREATE_NO_WINDOW, NULL, NULL,
+//                       &StartupInfo, &ProcessInfo)) {
+//        //WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
+//        CloseHandle(ProcessInfo.hThread);
+//        CloseHandle(ProcessInfo.hProcess);
+//        return TRUE;
+//    }
+    SHELLEXECUTEINFO shExInfo = {0};
+    shExInfo.cbSize = sizeof(shExInfo);
+    shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE | SEE_MASK_FLAG_NO_UI;
+    shExInfo.hwnd = NULL;
+    shExInfo.lpVerb = L"runas";
+    shExInfo.lpFile = fileName;
+    shExInfo.lpParameters = args;
+    shExInfo.lpDirectory = NULL;
+    shExInfo.nShow = SW_HIDE;
+    shExInfo.hInstApp = NULL;
+    if (ShellExecuteEx(&shExInfo)) {
+        //WaitForSingleObject(shExInfo.hProcess, INFINITE);
+        CloseHandle(shExInfo.hProcess);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/*class CUpdateManager::CUpdateManagerPrivate
+{
+public:
+    CUpdateManagerPrivate(CUpdateManager *owner)
+    {
+
+    }
+
+    ~CUpdateManagerPrivate()
+    {
+
+    }
+
+private:
+
+};*/
+
+struct CUpdateManager::PackageData {
+    QString     fileName;
+    wstring     packageUrl,
+                packageArgs;
+    void clear() {
+        fileName.clear();
+        packageUrl.clear();
+        packageArgs.clear();
+    }
+};
+
+struct CUpdateManager::SavedPackageData {
+    QByteArray hash;
+    QString    version,
+               fileName;
+};
+
 CUpdateManager::CUpdateManager(QObject *parent):
     QObject(parent),
+    m_packageData(new PackageData),
+    m_savedPackageData(new SavedPackageData),
     m_checkUrl(L""),
-    m_downloadMode(Mode::CHECK_UPDATES),
-    m_dialogSchedule(new DialogSchedule(this))
+    m_dialogSchedule(new DialogSchedule(this)),
+    m_socket(new CSocket(SENDER_PORT, RECEIVER_PORT))
 {
     // =========== Set updates URL ============
     auto setUrl = [=] {
@@ -143,20 +234,23 @@ CUpdateManager::CUpdateManager(QObject *parent):
     if (Utils::getWinVersion() > Utils::WinVer::WinXP && reg_system.value("CheckForUpdates", true).toBool())
         setUrl();
 #else
-    //setUrl();
+    setUrl();
 #endif
 
-    if ( !m_checkUrl.empty() ) {
-        m_pDownloader = new CFileDownloader(m_checkUrl, false);
-        m_pDownloader->SetEvent_OnComplete([=](int error) {
-            QMetaObject::invokeMethod(this, "onCompleteSlot", Qt::QueuedConnection, Q_ARG(int, error));
+    m_appPath = qApp->applicationDirPath();
+    bool isDirectoryValid = true;
+#ifdef CHECK_DIRECTORY
+    if (QFileInfo(m_appPath).baseName() != QString(REG_APP_NAME)) {
+        isDirectoryValid = false;
+        QTimer::singleShot(2000, this, [] {
+            criticalMsg(tr("This folder configuration does not allow for "
+                           "updates! The folder name should be: ") + QString(REG_APP_NAME));
         });
-
-#ifdef Q_OS_WIN
-        m_pDownloader->SetEvent_OnProgress([=](int percent) {
-            QMetaObject::invokeMethod(this, "onProgressSlot", Qt::QueuedConnection, Q_ARG(int, percent));
-        });
-#else
+    }
+#endif
+    if ( !m_checkUrl.empty() && isDirectoryValid) {
+        //m_pimpl = new CUpdateManagerPrivate(this);
+#ifdef __linux__
         m_pTimer = new QTimer(this);
         m_pTimer->setSingleShot(false);
         connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
@@ -167,35 +261,11 @@ CUpdateManager::CUpdateManager(QObject *parent):
 
 CUpdateManager::~CUpdateManager()
 {
-    if ( m_pDownloader )
-        delete m_pDownloader, m_pDownloader = nullptr;
-    if (m_dialogSchedule)
-        delete m_dialogSchedule, m_dialogSchedule = nullptr;
-}
-
-void CUpdateManager::onCompleteSlot(const int error)
-{
-    if (error == 0) {
-        //qDebug() << "Download complete... Mode: " << m_downloadMode;
-        switch (m_downloadMode) {
-        case Mode::CHECK_UPDATES:
-            onLoadCheckFinished();
-            break;
-#ifdef Q_OS_WIN
-        case Mode::DOWNLOAD_UPDATES:
-            onLoadUpdateFinished();
-            break;
-#endif
-        default: break;
-        }
-    } else
-    if (error == 1) {
-        auto wgt = QApplication::activeWindow();
-        if (wgt && wgt->objectName() == "MainWindow" && !wgt->isMinimized())
-            CMessage::warning(wgt, tr("Server connection error!"));
-    } else {
-        // Pause or Stop
-    }
+    delete m_packageData, m_packageData = nullptr;
+    delete m_savedPackageData, m_savedPackageData = nullptr;
+    delete m_dialogSchedule, m_dialogSchedule = nullptr;
+    //delete m_pimpl, m_pimpl = nullptr;
+    delete m_socket, m_socket = nullptr;
 }
 
 void CUpdateManager::init()
@@ -204,9 +274,9 @@ void CUpdateManager::init()
     GET_REGISTRY_USER(reg_user);
     reg_user.beginGroup("Updates");
 #ifdef _WIN32
-    m_savedPackageData.fileName = reg_user.value("Updates/file", QString()).toString();
-    m_savedPackageData.hash = reg_user.value("Updates/hash", QByteArray()).toByteArray();
-    m_savedPackageData.version = reg_user.value("Updates/version", QString()).toString();
+    m_savedPackageData->fileName = reg_user.value("Updates/file", QString()).toString();
+    m_savedPackageData->hash = reg_user.value("Updates/hash", QByteArray()).toByteArray();
+    m_savedPackageData->version = reg_user.value("Updates/version", QString()).toString();
     reg_user.endGroup();
     checkOnStartup = (getUpdateMode() != UpdateMode::DISABLE);
 #else
@@ -222,20 +292,54 @@ void CUpdateManager::init()
         connect(m_pCheckOnStartupTimer, &QTimer::timeout, this, &CUpdateManager::updateNeededCheking);
         m_pCheckOnStartupTimer->start();
     }
-}
 
-void CUpdateManager::downloadFile(const std::wstring &url, const QString &ext)
-{
-    if (m_pDownloader) {
-        m_pDownloader->Stop();
-        m_pDownloader->SetFileUrl(url, false);
-        const QUuid uuid = QUuid::createUuid();
-        const QRegularExpression branches = QRegularExpression("[{|}]+");
-        const QString tmp_file = QDir::tempPath() + "/" + QString(FILE_PREFIX) +
-                uuid.toString().replace(branches, "") + currentArch() + ext;
-        m_pDownloader->SetFilePath(tmp_file.toStdWString());
-        m_pDownloader->Start(0);
-    }
+    m_socket->onMessageReceived([this](void *data, size_t size) {
+        wstring str((const wchar_t*)data), tmp;
+        vector<wstring> params;
+        std::wstringstream wss(str);
+        while (std::getline(wss, tmp, L'|'))
+            params.push_back(std::move(tmp));
+
+        if (params.size() == 4) {
+            switch (std::stoi(params[0])) {
+            case MSG_LoadCheckFinished:
+                QMetaObject::invokeMethod(this, "onLoadCheckFinished", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdWString(params[1])));
+                break;
+
+            case MSG_LoadUpdateFinished:
+                QMetaObject::invokeMethod(this, "onLoadUpdateFinished", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdWString(params[1])));
+                break;
+
+            case MSG_ShowStartInstallMessage: {
+                m_lock = false;
+                QMetaObject::invokeMethod(this->m_dialogSchedule,
+                                          "addToSchedule",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QString, QString("showStartInstallMessage")));
+                break;
+            }
+
+            case MSG_Progress:
+                QMetaObject::invokeMethod(this, "onProgressSlot", Qt::QueuedConnection, Q_ARG(int, std::stoi(params[1])));
+                break;
+
+            case MSG_DownloadingError: {
+                /*auto wgt = QApplication::activeWindow();
+                if (wgt && wgt->objectName() == "MainWindow" && !wgt->isMinimized())
+                    CMessage::warning(wgt, tr("Server connection error!"));*/
+                break;
+            }
+
+            case MSG_OtherError:
+                QMetaObject::invokeMethod(this, "onError", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdWString(params[1])));
+                break;
+
+            default:
+                break;
+            }
+            //qDebug() << QString::fromStdWString(params[0]) << QString::fromStdWString(params[1]) << QString::fromStdWString(params[2]) << QString::fromStdWString(params[3]);
+        }
+    });
 }
 
 void CUpdateManager::clearTempFiles(const QString &except)
@@ -243,16 +347,7 @@ void CUpdateManager::clearTempFiles(const QString &except)
     static bool lock = false;
     if (!lock) { // for one-time cleaning
         lock = true;
-        QtConcurrent::run([=]() {
-            QStringList filter{"*.json", "*.exe"};
-            QDirIterator it(QDir::tempPath(), filter, QDir::Files | QDir::NoSymLinks |
-                            QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-            while (it.hasNext()) {
-                const QString tmp = it.next();
-                if (tmp.toLower().indexOf(FILE_PREFIX) != -1 && tmp != except)
-                    QDir().remove(tmp);
-            }
-        });
+        sendMessage(MSG_ClearTempFiles, TEXT(FILE_PREFIX), except.toStdWString());
     }
 #ifdef _WIN32
     if (except.isEmpty())
@@ -263,11 +358,9 @@ void CUpdateManager::clearTempFiles(const QString &except)
 void CUpdateManager::checkUpdates()
 {
     destroyStartupTimer(m_pCheckOnStartupTimer);
-    m_newVersion = "";
+    m_newVersion.clear();
 #ifdef Q_OS_WIN
-    m_packageData.packageUrl = L"";
-    m_packageData.packageArgs = L"";
-    m_packageData.fileName = "";
+    m_packageData->clear();
 #else
     m_lastCheck = time(nullptr);
     GET_REGISTRY_USER(reg_user);
@@ -276,8 +369,9 @@ void CUpdateManager::checkUpdates()
     reg_user.endGroup();
 #endif
 
-    m_downloadMode = Mode::CHECK_UPDATES;
-    downloadFile(m_checkUrl, ".json");
+    if (!sendMessage(MSG_CheckUpdates, m_checkUrl)) {
+        criticalMsg(QObject::tr("An error occurred while check updates: Update Service not found!"));
+    }
 #ifndef Q_OS_WIN
     QTimer::singleShot(3000, this, [=]() {
         updateNeededCheking();
@@ -327,15 +421,20 @@ void CUpdateManager::updateNeededCheking()
 #ifdef Q_OS_WIN
 void CUpdateManager::onProgressSlot(const int percent)
 {
-    if (m_downloadMode == Mode::DOWNLOAD_UPDATES)
-        emit progresChanged(percent);
+    emit progresChanged(percent);
+}
+
+void CUpdateManager::onError(const QString &error)
+{
+    m_lock = false;
+    criticalMsg(error);
 }
 
 void CUpdateManager::savePackageData(const QByteArray &hash, const QString &version, const QString &fileName)
 {
-    m_savedPackageData.fileName = fileName;
-    m_savedPackageData.hash = hash;
-    m_savedPackageData.version = version;
+    m_savedPackageData->fileName = fileName;
+    m_savedPackageData->hash = hash;
+    m_savedPackageData->version = version;
     GET_REGISTRY_USER(reg_user);
     reg_user.beginGroup("Updates");
     reg_user.setValue("Updates/file", fileName);
@@ -344,33 +443,30 @@ void CUpdateManager::savePackageData(const QByteArray &hash, const QString &vers
     reg_user.endGroup();
 }
 
-QByteArray CUpdateManager::getFileHash(const QString &fileName)
+bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)
 {
-    QFile file(fileName);
-    if (file.open(QFile::ReadOnly)) {
-        QCryptographicHash hash(QCryptographicHash::Md5);
-        if (hash.addData(&file)) {
-            file.close();
-            return hash.result();
-        }
-        file.close();
-    }
-    return QByteArray();
+    wstring str = std::to_wstring(cmd) + L"|" + param1 + L"|" + param2 + L"|" + param3;
+    size_t sz = str.size() * sizeof(str.front());
+    return m_socket->sendMessage((void*)str.c_str(), sz);
 }
 
 void CUpdateManager::loadUpdates()
 {
-    if (!m_savedPackageData.fileName.isEmpty()
-            && m_savedPackageData.fileName.indexOf(currentArch()) != -1
-            && m_savedPackageData.version == m_newVersion
-            && m_savedPackageData.hash == getFileHash(m_savedPackageData.fileName))
+    if (m_lock)
+        return;
+    if (!m_savedPackageData->fileName.isEmpty()
+            && m_savedPackageData->fileName.indexOf(currentArch()) != -1
+            && m_savedPackageData->version == m_newVersion
+            && m_savedPackageData->hash == getFileHash(m_savedPackageData->fileName))
     {
-        m_packageData.fileName = m_savedPackageData.fileName;
-        m_dialogSchedule->addToSchedule("showStartInstallMessage");
+        m_packageData->fileName = m_savedPackageData->fileName;
+        unzipIfNeeded();
+
     } else
-    if (m_packageData.packageUrl != L"") {
-        m_downloadMode = Mode::DOWNLOAD_UPDATES;
-        downloadFile(m_packageData.packageUrl, ".exe");
+    if (!m_packageData->packageUrl.empty()) {
+        if (!sendMessage(MSG_LoadUpdates, m_packageData->packageUrl)) {
+            criticalMsg(QObject::tr("An error occurred while loading updates: Update Service not found!"));
+        }
     }
 }
 
@@ -389,27 +485,33 @@ QString CUpdateManager::getVersion() const
     return m_newVersion;
 }
 
-void CUpdateManager::onLoadUpdateFinished()
+void CUpdateManager::onLoadUpdateFinished(const QString &filePath)
 {
-    m_packageData.fileName = QString::fromStdWString(m_pDownloader->GetFilePath());
-    savePackageData(getFileHash(m_packageData.fileName), m_newVersion, m_packageData.fileName);
-    m_dialogSchedule->addToSchedule("showStartInstallMessage");
+    m_packageData->fileName = filePath;
+    savePackageData(getFileHash(m_packageData->fileName), m_newVersion, m_packageData->fileName);
+    unzipIfNeeded();
+}
+
+void CUpdateManager::unzipIfNeeded()
+{
+    if (m_lock)
+        return;
+    m_lock = true;
+
+    if (!sendMessage(MSG_UnzipIfNeeded, m_packageData->fileName.toStdWString(), m_newVersion.toStdWString())) {
+        m_lock = false;
+        criticalMsg(QObject::tr("An error occurred while unzip updates: Update Service not found!"));
+    }
 }
 
 void CUpdateManager::handleAppClose()
 {
     if ( m_restartForUpdate ) {
-        GET_REGISTRY_SYSTEM(reg_system)
-        QString prev_inst_lang = reg_system.value("locale", "en").toString();
-
-        QStringList args{"/LANG=" + prev_inst_lang};
-        if ( !m_packageData.packageArgs.empty() )
-            args << QString::fromStdWString(m_packageData.packageArgs).split(" ");
-        if (!QProcess::startDetached(m_packageData.fileName, args)) {
-            //qDebug() << "Install command not found!" << m_packageData.fileName << args;
+        if (!sendMessage(MSG_StartReplacingFiles)) {
+            criticalMsg(QObject::tr("An error occurred while start replacing files: Update Service not found!"));;
         }
     } else
-        cancelLoading();
+        sendMessage(MSG_StopDownload);
 }
 
 void CUpdateManager::scheduleRestartForUpdate()
@@ -441,9 +543,10 @@ void CUpdateManager::setNewUpdateSetting(const QString& _rate)
 
 void CUpdateManager::cancelLoading()
 {
-    m_downloadMode = Mode::CHECK_UPDATES;
-    if (m_pDownloader)
-        m_pDownloader->Stop();
+    if (m_lock)
+        return;
+    AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(m_newVersion));
+    sendMessage(MSG_StopDownload);
 }
 
 void CUpdateManager::skipVersion()
@@ -470,10 +573,9 @@ int CUpdateManager::getUpdateMode()
 #endif
 }
 
-void CUpdateManager::onLoadCheckFinished()
+void CUpdateManager::onLoadCheckFinished(const QString &filePath)
 {
-    const QString path = QString::fromStdWString(m_pDownloader->GetFilePath());
-    QFile jsonFile(path);
+    QFile jsonFile(filePath);
     if ( jsonFile.open(QIODevice::ReadOnly) ) {
         QByteArray ReplyText = jsonFile.readAll();
         jsonFile.close();
@@ -510,8 +612,10 @@ void CUpdateManager::onLoadCheckFinished()
             QJsonValue win = package.value("win_32");
 # endif
             QJsonObject win_params = win.toObject();
-            m_packageData.packageUrl = win_params.value("url").toString().toStdWString();
-            m_packageData.packageArgs = win_params.value("installArguments").toString().toStdWString();
+            QJsonObject archive = win_params.value("archive").toObject();
+            m_packageData->packageUrl = archive.value("url").toString().toStdWString();
+            //m_packageData->packageUrl = win_params.value("url").toString().toStdWString();
+            m_packageData->packageArgs = win_params.value("installArguments").toString().toStdWString();
 #endif
 
             // parse release notes
@@ -521,9 +625,9 @@ void CUpdateManager::onLoadCheckFinished()
 
             m_newVersion = version;
 #ifdef Q_OS_WIN
-            if (m_newVersion == m_savedPackageData.version
-                    && m_savedPackageData.fileName.indexOf(currentArch()) != -1)
-                clearTempFiles(m_savedPackageData.fileName);
+            if (m_newVersion == m_savedPackageData->version
+                    && m_savedPackageData->fileName.indexOf(currentArch()) != -1)
+                clearTempFiles(m_savedPackageData->fileName);
             else
 #endif
                 clearTempFiles();
@@ -629,3 +733,5 @@ void CUpdateManager::showStartInstallMessage(QWidget *parent)
     }
 }
 #endif
+
+#include "cupdatemanager.moc"
