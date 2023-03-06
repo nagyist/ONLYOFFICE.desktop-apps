@@ -44,6 +44,7 @@
 #include <regex>
 #include <cstdio>
 #include <Wincrypt.h>
+#include <WtsApi32.h>
 #include <vector>
 #include <sstream>
 
@@ -218,20 +219,69 @@ bool File::replaceFolderContents(const wstring &fromDir,
 
 bool File::runProcess(const wstring &fileName, const wstring &args)
 {
-    PROCESS_INFORMATION ProcessInfo;
-    STARTUPINFO StartupInfo;
-    ZeroMemory(&StartupInfo, sizeof(StartupInfo));
-    StartupInfo.cb = sizeof(StartupInfo);
-    if (CreateProcessW(fileName.c_str(), (wchar_t*)args.c_str(),
-                       NULL, NULL, FALSE,
-                       CREATE_NO_WINDOW, NULL, NULL,
-                       &StartupInfo, &ProcessInfo)) {
-        //WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
-        CloseHandle(ProcessInfo.hThread);
-        CloseHandle(ProcessInfo.hProcess);
-        return true;
+    HANDLE hToken = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_IMPERSONATE, &hToken)) {
+        return false;
     }
-    return false;
+    DWORD dwSize = 0;
+    if (!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)
+            && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        CloseHandle(hToken);
+        return false;
+    }
+    PTOKEN_USER pTokenUser = (PTOKEN_USER)GlobalAlloc(GPTR, dwSize);
+    if (!pTokenUser) {
+        CloseHandle(hToken);
+        return false;
+    }
+    if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwSize, &dwSize)) {
+        GlobalFree(pTokenUser);
+        CloseHandle(hToken);
+        return false;
+    }
+    DWORD dwSessionId = WTSGetActiveConsoleSessionId();
+    if (dwSessionId == 0xFFFFFFFF) {
+        GlobalFree(pTokenUser);
+        CloseHandle(hToken);
+        return false;
+    }
+
+//    HANDLE hWTSStation = WTSOpenServer(const_cast<LPWSTR>(L"."));
+//    if (hWTSStation == NULL) {
+//        GlobalFree(pTokenUser);
+//        CloseHandle(hToken);
+//        return false;
+//    }
+
+    HANDLE hUserToken = NULL;
+    if (!WTSQueryUserToken(dwSessionId, &hUserToken)) {
+//        WTSCloseServer(hWTSStation);
+        GlobalFree(pTokenUser);
+        CloseHandle(hToken);
+        return false;
+    }
+    bool bResult = false;
+    STARTUPINFO si;
+    ZeroMemory(&si, sizeof(STARTUPINFO));
+    si.cb = sizeof(STARTUPINFO);
+    si.lpDesktop = const_cast<LPWSTR>(L"winsta0\\default");
+    PROCESS_INFORMATION pi;
+    if (CreateProcessAsUser(hUserToken,
+                            fileName.c_str(),
+                            const_cast<LPWSTR>(args.c_str()),
+                            NULL, NULL, FALSE,
+                            CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT,
+                            NULL, NULL, &si, &pi))
+    {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        bResult = true;
+    }
+    CloseHandle(hUserToken);
+//    WTSCloseServer(hWTSStation);
+    GlobalFree(pTokenUser);
+    CloseHandle(hToken);
+    return bResult;
 }
 
 bool File::fileExists(const wstring &filePath)
@@ -331,17 +381,7 @@ wstring File::appPath()
 
 string File::getFileHash(const wstring &fileName)
 {
-    //DWORD dwStatus = 0;
-    BOOL bResult = FALSE;
-    HCRYPTPROV hProv = 0;
-    HCRYPTHASH hHash = 0;
     HANDLE hFile = NULL;
-    BYTE rgbFile[BUFSIZE];
-    DWORD cbRead = 0;
-    //BYTE rgbHash[MD5LEN];
-    DWORD cbHash = 0;
-    //CHAR rgbDigits[] = "0123456789abcdef";
-
     hFile = CreateFile(fileName.c_str(),
         GENERIC_READ,
         FILE_SHARE_READ,
@@ -351,34 +391,31 @@ string File::getFileHash(const wstring &fileName)
         NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
-        // Error opening file
-        //dwStatus = GetLastError();
         return "";
     }
 
     // Get handle to the crypto provider
+    HCRYPTPROV hProv = 0;
     if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
-        // CryptAcquireContext failed
-        //dwStatus = GetLastError();
         CloseHandle(hFile);
         return "";
     }
 
+    HCRYPTHASH hHash = 0;
     if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash)) {
-        // CryptAcquireContext failed
-        //dwStatus = GetLastError();
         CloseHandle(hFile);
         CryptReleaseContext(hProv, 0);
         return "";
     }
 
+    DWORD cbRead = 0;
+    BYTE rgbFile[BUFSIZE];
+    BOOL bResult = FALSE;
     while ((bResult = ReadFile(hFile, rgbFile, BUFSIZE, &cbRead, NULL))) {
         if (cbRead == 0)
             break;
 
         if (!CryptHashData(hHash, rgbFile, cbRead, 0)) {
-            // CryptHashData failed
-            //dwStatus = GetLastError();
             CryptReleaseContext(hProv, 0);
             CryptDestroyHash(hHash);
             CloseHandle(hFile);
@@ -387,15 +424,14 @@ string File::getFileHash(const wstring &fileName)
     }
 
     if (!bResult) {
-        // ReadFile failed
-        //dwStatus = GetLastError();
         CryptReleaseContext(hProv, 0);
         CryptDestroyHash(hHash);
         CloseHandle(hFile);
         return "";
     }
 
-    DWORD cbHashSize = 0, dwCount = sizeof(DWORD);
+    DWORD cbHashSize = 0,
+          dwCount = sizeof(DWORD);
     if (!CryptGetHashParam( hHash, HP_HASHSIZE, (BYTE*)&cbHashSize, &dwCount, 0)) {
         CryptReleaseContext(hProv, 0);
         CryptDestroyHash(hHash);
@@ -403,11 +439,8 @@ string File::getFileHash(const wstring &fileName)
         return "";
     }
 
-    cbHash = MD5LEN;
     std::vector<BYTE> buffer(cbHashSize);
     if (!CryptGetHashParam(hHash, HP_HASHVAL, reinterpret_cast<BYTE*>(&buffer[0]), &cbHashSize, 0)) {
-        // CryptGetHashParam failed
-        //dwStatus = GetLastError();
         CryptReleaseContext(hProv, 0);
         CryptDestroyHash(hHash);
         CloseHandle(hFile);
@@ -421,8 +454,8 @@ string File::getFileHash(const wstring &fileName)
         oss << std::hex << static_cast<const int>(*it);
     }
 
-    CryptDestroyHash(hHash);
     CryptReleaseContext(hProv, 0);
+    CryptDestroyHash(hHash);
     CloseHandle(hFile);
     return oss.str();
 }
