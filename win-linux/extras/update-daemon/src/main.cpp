@@ -139,6 +139,7 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
     HANDLE hThread = CreateThread(NULL, 0, SvcWorkerThread, NULL, 0, NULL);
     WaitForSingleObject(hThread, INFINITE);
     ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
+    CloseHandle(hThread);
     CloseHandle(gSvcStopEvent);
 }
 
