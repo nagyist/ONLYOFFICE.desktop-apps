@@ -1,4 +1,5 @@
 #include "svccontrol.h"
+#include "event_message/event_message.h"
 #include "utils.h"
 #include <aclapi.h>
 
@@ -718,4 +719,28 @@ VOID __stdcall SvcControl::DoDeleteSvc() // Deletes a service from the SCM datab
 
     CloseServiceHandle(schService);
     CloseServiceHandle(schSCManager);
+}
+
+VOID __stdcall SvcControl::SvcReportEvent(LPCTSTR errorDescription)
+{
+    HANDLE hEventSource = RegisterEventSource(NULL, SERVICE_NAME);
+    if (hEventSource != NULL) {
+        TCHAR Buffer[80];
+        StringCchPrintfW(Buffer, 80, TEXT("%s"), errorDescription);
+        LPCTSTR lpszStrings[2];
+        lpszStrings[0] = SERVICE_NAME;
+        lpszStrings[1] = Buffer;
+
+        ReportEvent(hEventSource,        // event log handle
+                    EVENTLOG_ERROR_TYPE, // event type
+                    0,                   // event category
+                    SVC_ERROR,           // event identifier
+                    NULL,                // no security identifier
+                    2,                   // size of lpszStrings array
+                    0,                   // no binary data
+                    lpszStrings,         // array of strings
+                    NULL);               // no binary data
+
+        DeregisterEventSource(hEventSource);
+    }
 }

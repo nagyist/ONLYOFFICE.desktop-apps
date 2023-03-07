@@ -32,7 +32,6 @@
 
 #include "utils.h"
 #include "svccontrol.h"
-#include "event_message/event_message.h"
 #include "classes/capplication.h"
 #include "classes/cupdatemanager.h"
 
@@ -106,7 +105,8 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
 {
     gSvcStatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME, SvcCtrlHandler);
     if (gSvcStatusHandle == NULL) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+        wstring err(ADVANCED_ERROR_MESSAGE);
+        SvcControl::SvcReportEvent(err.c_str());
         return;
     }
 
@@ -128,7 +128,8 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
                                 NULL); // no name
     if (gSvcStopEvent == NULL) {
         ReportSvcStatus(SERVICE_STOPPED, GetLastError(), 0);
-        Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+        wstring err(ADVANCED_ERROR_MESSAGE);
+        SvcControl::SvcReportEvent(err.c_str());
         return;
     }
 
@@ -199,30 +200,7 @@ VOID ReportSvcStatus(DWORD dwCurrentState,
 
     // Report the status of the service to the SCM.
     if (SetServiceStatus(gSvcStatusHandle, &gSvcStatus) == FALSE) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
-    }
-}
-
-VOID SvcReportEvent(LPTSTR errorDescription)
-{
-    HANDLE hEventSource = RegisterEventSource(NULL, SERVICE_NAME);
-    if (hEventSource != NULL) {
-        TCHAR Buffer[80];
-        StringCchPrintf(Buffer, 80, TEXT("%s"), errorDescription);
-        LPCTSTR lpszStrings[2];
-        lpszStrings[0] = SERVICE_NAME;
-        lpszStrings[1] = Buffer;
-
-        ReportEvent(hEventSource,        // event log handle
-                    EVENTLOG_ERROR_TYPE, // event type
-                    0,                   // event category
-                    SVC_ERROR,           // event identifier
-                    NULL,                // no security identifier
-                    2,                   // size of lpszStrings array
-                    0,                   // no binary data
-                    lpszStrings,         // array of strings
-                    NULL);               // no binary data
-
-        DeregisterEventSource(hEventSource);
+        wstring err(ADVANCED_ERROR_MESSAGE);
+        SvcControl::SvcReportEvent(err.c_str());
     }
 }

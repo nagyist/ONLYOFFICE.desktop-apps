@@ -19,6 +19,7 @@ VOID __stdcall DoUpdateSvcDesc(LPTSTR szDesc);
 VOID __stdcall DoDisableSvc(void);
 VOID __stdcall DoEnableSvc(void);
 VOID __stdcall DoDeleteSvc(void);
+VOID __stdcall SvcReportEvent(LPCTSTR errorDescription);
 }
 
 #endif
