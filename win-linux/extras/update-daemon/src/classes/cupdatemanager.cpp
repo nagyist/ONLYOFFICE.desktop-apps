@@ -42,8 +42,6 @@
 #include <shlwapi.h>
 #include <sstream>
 
-#define SENDER_PORT   12010
-#define RECEIVER_PORT 12011
 #define UPDATE_PATH      L"/DesktopEditorsUpdates"
 #define BACKUP_PATH      L"/DesktopEditorsBackup"
 #define APP_LAUNCH_NAME  L"/DesktopEditors.exe"
@@ -164,7 +162,7 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
 CUpdateManager::CUpdateManager(CObject *parent):
     CObject(parent),
     m_downloadMode(Mode::CHECK_UPDATES),
-    m_socket(new CSocket(SENDER_PORT, RECEIVER_PORT)),
+    m_socket(new CSocket(APP_PORT, SVC_PORT)),
     m_pDownloader(new CDownloader)
 {
     init();

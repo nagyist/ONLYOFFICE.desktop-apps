@@ -48,8 +48,6 @@
 # include <Windows.h>
 # include "platform_win/updatedialog.h"
 # define DAEMON_NAME "/update-daemon.exe"
-# define SENDER_PORT   12011
-# define RECEIVER_PORT 12010
 #endif
 
 //#define CHECK_DIRECTORY
@@ -186,7 +184,7 @@ CUpdateManager::CUpdateManager(QObject *parent):
     m_savedPackageData(new SavedPackageData),
     m_checkUrl(L""),
     m_dialogSchedule(new DialogSchedule(this)),
-    m_socket(new CSocket(SENDER_PORT, RECEIVER_PORT))
+    m_socket(new CSocket(SVC_PORT, APP_PORT))
 {
     // =========== Set updates URL ============
     auto setUrl = [=] {

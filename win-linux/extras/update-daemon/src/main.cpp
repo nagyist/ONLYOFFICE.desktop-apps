@@ -34,8 +34,8 @@
 #include "svccontrol.h"
 #include "classes/capplication.h"
 #include "classes/cupdatemanager.h"
+#include "../../src/defines.h"
 
-#define INSTANCE_RECEIVER_PORT 12015
 
 SERVICE_STATUS          gSvcStatus;
 SERVICE_STATUS_HANDLE   gSvcStatusHandle;
@@ -90,7 +90,7 @@ int __cdecl _tmain (int argc, TCHAR *argv[])
             return 0;
         } else
         if (lstrcmpi(argv[1], _T("--run-as-app")) == 0) {
-            CSocket socket(0, INSTANCE_RECEIVER_PORT);
+            CSocket socket(0, INSTANCE_SVC_PORT);
             if (!socket.isPrimaryInstance())
                 return 0;
 
