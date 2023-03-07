@@ -47,7 +47,7 @@
 #ifdef _WIN32
 # include <Windows.h>
 # include "platform_win/updatedialog.h"
-# define DAEMON_NAME "/update-daemon.exe"
+# define DAEMON_NAME L"/update-daemon.exe"
 #endif
 
 //#define CHECK_DIRECTORY
@@ -141,15 +141,15 @@ auto getFileHash(const QString &fileName)->QByteArray
     return QByteArray();
 }
 
-auto runProcess(const WCHAR *fileName, WCHAR *args)->BOOL
+auto runProcess(const wstring &fileName, const wstring &args, bool runAsAdmin = false)->BOOL
 {
     SHELLEXECUTEINFO shExInfo = {0};
     shExInfo.cbSize = sizeof(shExInfo);
     shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE | SEE_MASK_FLAG_NO_UI;
     shExInfo.hwnd = NULL;
-    shExInfo.lpVerb = L"runas";
-    shExInfo.lpFile = fileName;
-    shExInfo.lpParameters = args;
+    shExInfo.lpVerb = runAsAdmin ? L"runas" : L"open";
+    shExInfo.lpFile = fileName.c_str();
+    shExInfo.lpParameters = args.c_str();
     shExInfo.lpDirectory = NULL;
     shExInfo.nShow = SW_HIDE;
     shExInfo.hInstApp = NULL;
@@ -205,6 +205,9 @@ CUpdateManager::CUpdateManager(QObject *parent):
 //        m_pTimer = new QTimer(this);
 //        m_pTimer->setSingleShot(false);
 //        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
+        m_isPortableVersion = (AppOptions::packageType() == AppOptions::AppPackageType::Portable);
+        if (m_isPortableVersion)
+            runProcess(m_appPath.toStdWString() + DAEMON_NAME, L"--run-as-app");
         init();
     }
 }
@@ -215,6 +218,11 @@ CUpdateManager::~CUpdateManager()
     delete m_savedPackageData, m_savedPackageData = nullptr;
     delete m_dialogSchedule, m_dialogSchedule = nullptr;
     delete m_socket, m_socket = nullptr;
+    if (m_isPortableVersion) {
+        CSocket sock(INSTANCE_SVC_PORT, 0);
+        const char msg[] = "stop";
+        sock.sendMessage((void*)msg, sizeof(msg));
+    }
 }
 
 void CUpdateManager::init()

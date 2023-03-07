@@ -189,10 +189,12 @@ CSocket::CSocket(int sender_port, int receiver_port) :
     pimpl(new CSocketPrv)
 {
     pimpl->m_sender_port = sender_port;
+    pimpl->m_socket_created = pimpl->createSocket(receiver_port);
     pimpl->m_future = std::async(std::launch::async, [=]() {
-        while (pimpl->run && !(pimpl->m_socket_created = pimpl->createSocket(receiver_port))) {
+        while (pimpl->run && !pimpl->m_socket_created) {
             pimpl->postError("Unable to create socket, retrying after 4 seconds.");
             Sleep(RETRIES_DELAY_MS);
+            pimpl->m_socket_created = pimpl->createSocket(receiver_port);
         }
         if (pimpl->m_socket_created)
             pimpl->startReadMessages();

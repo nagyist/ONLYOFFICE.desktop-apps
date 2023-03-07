@@ -89,6 +89,7 @@ private:
     SavedPackageData *m_savedPackageData;
 
     bool        m_restartForUpdate = false,
+                m_isPortableVersion = false,
                 m_lock = false;
 
 //    QTimer      *m_pTimer = nullptr;

@@ -4,7 +4,7 @@
 
 CApplication::CApplication()
 {
-
+    mainThreadId = GetCurrentThreadId();
 }
 
 CApplication::~CApplication()
@@ -25,7 +25,7 @@ int CApplication::exec()
 
 void CApplication::exit(int code)
 {
-    PostQuitMessage(code);
+    PostThreadMessage(mainThreadId, WM_QUIT, code, 0);
 }
 
 LRESULT CALLBACK CApplication::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
