@@ -1,7 +1,6 @@
 #ifndef CDOWNLOADER_H
 #define CDOWNLOADER_H
 
-#include "cobject.h"
 #include <string>
 #include <functional>
 #include <future>
@@ -10,10 +9,10 @@ typedef std::function<void(int)> FnVoidInt;
 
 using std::wstring;
 
-class CDownloader : CObject
+class CDownloader
 {
 public:
-    CDownloader(CObject *parent = nullptr);
+    CDownloader();
     ~CDownloader();
 
     void downloadFile(const wstring &url, const wstring &filePath);

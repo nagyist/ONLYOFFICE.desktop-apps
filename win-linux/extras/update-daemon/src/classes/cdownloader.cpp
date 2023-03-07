@@ -8,8 +8,7 @@ class CDownloader::DownloadProgress : public IBindStatusCallback
 {
 public:
     DownloadProgress(CDownloader *owner) :
-        m_owner(owner),
-        prev_percent(-1)
+        m_owner(owner)
     {
 
     }
@@ -58,17 +57,16 @@ public:
             return E_ABORT;
         return S_OK;
     }
-    int prev_percent;
+    int prev_percent = -1;
 
 private:
-    CDownloader *m_owner;
+    CDownloader *m_owner = nullptr;
 };
 
 bool CDownloader::m_run = true;
 bool CDownloader::m_lock = false;
 
-CDownloader::CDownloader(CObject *parent) :
-    CObject(parent)
+CDownloader::CDownloader()
 {
     signal(SIGTERM, &CDownloader::handle_signal);
     signal(SIGABRT, &CDownloader::handle_signal);
@@ -134,8 +132,10 @@ void CDownloader::start()
 void CDownloader::stop()
 {
     m_run = false;
-    /*if (!m_url.empty())
-        DeleteUrlCacheEntry(m_url.c_str());*/
+//    if (m_future.valid())
+//        m_future.wait();
+//    if (!m_url.empty())
+//        DeleteUrlCacheEntry(m_url.c_str());
 }
 
 wstring CDownloader::GetFilePath()
