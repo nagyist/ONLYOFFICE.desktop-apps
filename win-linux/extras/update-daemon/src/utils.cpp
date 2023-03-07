@@ -49,7 +49,6 @@
 #include <sstream>
 
 #define BUFSIZE 1024
-#define MD5LEN  16
 
 
 wstring Utils::GetLastErrorAsString()
@@ -219,48 +218,16 @@ bool File::replaceFolderContents(const wstring &fromDir,
 
 bool File::runProcess(const wstring &fileName, const wstring &args)
 {
-    HANDLE hToken = NULL;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_IMPERSONATE, &hToken)) {
-        return false;
-    }
-    DWORD dwSize = 0;
-    if (!GetTokenInformation(hToken, TokenUser, NULL, 0, &dwSize)
-            && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-        CloseHandle(hToken);
-        return false;
-    }
-    PTOKEN_USER pTokenUser = (PTOKEN_USER)GlobalAlloc(GPTR, dwSize);
-    if (!pTokenUser) {
-        CloseHandle(hToken);
-        return false;
-    }
-    if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwSize, &dwSize)) {
-        GlobalFree(pTokenUser);
-        CloseHandle(hToken);
-        return false;
-    }
     DWORD dwSessionId = WTSGetActiveConsoleSessionId();
     if (dwSessionId == 0xFFFFFFFF) {
-        GlobalFree(pTokenUser);
-        CloseHandle(hToken);
         return false;
     }
-
-//    HANDLE hWTSStation = WTSOpenServer(const_cast<LPWSTR>(L"."));
-//    if (hWTSStation == NULL) {
-//        GlobalFree(pTokenUser);
-//        CloseHandle(hToken);
-//        return false;
-//    }
 
     HANDLE hUserToken = NULL;
     if (!WTSQueryUserToken(dwSessionId, &hUserToken)) {
-//        WTSCloseServer(hWTSStation);
-        GlobalFree(pTokenUser);
-        CloseHandle(hToken);
         return false;
     }
-    bool bResult = false;
+
     STARTUPINFO si;
     ZeroMemory(&si, sizeof(STARTUPINFO));
     si.cb = sizeof(STARTUPINFO);
@@ -275,13 +242,11 @@ bool File::runProcess(const wstring &fileName, const wstring &args)
     {
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
-        bResult = true;
+        CloseHandle(hUserToken);
+        return true;
     }
     CloseHandle(hUserToken);
-//    WTSCloseServer(hWTSStation);
-    GlobalFree(pTokenUser);
-    CloseHandle(hToken);
-    return bResult;
+    return false;
 }
 
 bool File::fileExists(const wstring &filePath)
