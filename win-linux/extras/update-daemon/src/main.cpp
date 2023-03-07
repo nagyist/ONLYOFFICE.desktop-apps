@@ -49,42 +49,44 @@ VOID SvcReportEvent(LPTSTR);
 
 int __cdecl _tmain (int argc, TCHAR *argv[])
 {
-    if (lstrcmpi(argv[1], _T("--install")) == 0) {
-        SvcControl::SvcInstall();
-        if (argv[2])
-            SvcControl::DoUpdateSvcDesc(argv[2]);
-        SvcControl::DoStartSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--delete")) == 0) {
-        SvcControl::DoStopSvc();
-        SvcControl::DoDeleteSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--start")) == 0) {
-        SvcControl::DoStartSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--stop")) == 0) {
-        SvcControl::DoStopSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--enable")) == 0) {
-        SvcControl::DoEnableSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--disable")) == 0) {
-        SvcControl::DoDisableSvc();
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--description")) == 0) {
-        if (argv[2])
-            SvcControl::DoUpdateSvcDesc(argv[2]);
-        return 0;
-    } else
-    if (lstrcmpi(argv[1], _T("--update_dacl")) == 0) {
-        //SvcControl::DoUpdateSvcDacl(pTrusteeName);
-        return 0;
+    if (argc > 1) {
+        if (lstrcmpi(argv[1], _T("--install")) == 0) {
+            SvcControl::SvcInstall();
+            if (argc > 2)
+                SvcControl::DoUpdateSvcDesc(argv[2]);
+            SvcControl::DoStartSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--delete")) == 0) {
+            SvcControl::DoStopSvc();
+            SvcControl::DoDeleteSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--start")) == 0) {
+            SvcControl::DoStartSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--stop")) == 0) {
+            SvcControl::DoStopSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--enable")) == 0) {
+            SvcControl::DoEnableSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--disable")) == 0) {
+            SvcControl::DoDisableSvc();
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--description")) == 0) {
+            if (argc > 2)
+                SvcControl::DoUpdateSvcDesc(argv[2]);
+            return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--update_dacl")) == 0) {
+            //SvcControl::DoUpdateSvcDacl(pTrusteeName);
+            return 0;
+        }
     }
 
     SERVICE_TABLE_ENTRY DispatchTable[] =
