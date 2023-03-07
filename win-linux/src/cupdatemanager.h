@@ -99,8 +99,6 @@ private:
     QString     m_newVersion,
                 m_appPath;
 
-    //class CUpdateManagerPrivate;
-    //CUpdateManagerPrivate *m_pimpl = nullptr;
     class DialogSchedule;
     DialogSchedule *m_dialogSchedule = nullptr;
 

@@ -61,26 +61,6 @@
 
 using std::vector;
 
-
-auto currentArch()->QString
-{
-#ifdef _WIN32
-# ifdef _WIN64
-    return "_x64";
-# else
-    return "_x86";
-# endif
-#else
-    return "_x64";
-#endif
-}
-
-auto criticalMsg(const QString &msg)
-{
-    wstring lpText = msg.toStdWString();
-    MessageBoxW(NULL, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
-}
-
 class CUpdateManager::DialogSchedule : public QObject
 {
     Q_OBJECT
@@ -118,6 +98,25 @@ void CUpdateManager::DialogSchedule::addToSchedule(const QString &method)
     m_shedule_vec.push_back(method);
     if (!m_timer->isActive())
         m_timer->start();
+}
+
+auto currentArch()->QString
+{
+#ifdef _WIN32
+# ifdef _WIN64
+    return "_x64";
+# else
+    return "_x86";
+# endif
+#else
+    return "_x64";
+#endif
+}
+
+auto criticalMsg(const QString &msg)
+{
+    wstring lpText = msg.toStdWString();
+    MessageBoxW(NULL, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
 }
 
 auto destroyStartupTimer(QTimer* &timer)->void
@@ -164,23 +163,6 @@ auto runProcess(const WCHAR *fileName, WCHAR *args)->BOOL
     return FALSE;
 }
 
-/*class CUpdateManager::CUpdateManagerPrivate
-{
-public:
-    CUpdateManagerPrivate(CUpdateManager *owner)
-    {
-
-    }
-
-    ~CUpdateManagerPrivate()
-    {
-
-    }
-
-private:
-
-};*/
-
 struct CUpdateManager::PackageData {
     QString     fileName;
     wstring     packageUrl,
@@ -221,18 +203,7 @@ CUpdateManager::CUpdateManager(QObject *parent):
 #endif
 
     m_appPath = qApp->applicationDirPath();
-    bool isDirectoryValid = true;
-#ifdef CHECK_DIRECTORY
-    if (QFileInfo(m_appPath).baseName() != QString(REG_APP_NAME)) {
-        isDirectoryValid = false;
-        QTimer::singleShot(2000, this, [] {
-            criticalMsg(tr("This folder configuration does not allow for "
-                           "updates! The folder name should be: ") + QString(REG_APP_NAME));
-        });
-    }
-#endif
-    if ( !m_checkUrl.empty() && isDirectoryValid) {
-        //m_pimpl = new CUpdateManagerPrivate(this);
+    if ( !m_checkUrl.empty()) {
 //        m_pTimer = new QTimer(this);
 //        m_pTimer->setSingleShot(false);
 //        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
@@ -245,7 +216,6 @@ CUpdateManager::~CUpdateManager()
     delete m_packageData, m_packageData = nullptr;
     delete m_savedPackageData, m_savedPackageData = nullptr;
     delete m_dialogSchedule, m_dialogSchedule = nullptr;
-    //delete m_pimpl, m_pimpl = nullptr;
     delete m_socket, m_socket = nullptr;
 }
 
@@ -325,6 +295,15 @@ void CUpdateManager::checkUpdates()
     destroyStartupTimer(m_pCheckOnStartupTimer);
     m_newVersion.clear();
     m_packageData->clear();
+
+#ifdef CHECK_DIRECTORY
+    if (QFileInfo(m_appPath).baseName() != QString(REG_APP_NAME)) {
+        criticalMsg(tr("This folder configuration does not allow for "
+                       "updates! The folder name should be: ") + QString(REG_APP_NAME));
+        return;
+    }
+#endif
+
 //    m_lastCheck = time(nullptr);
 //    GET_REGISTRY_USER(reg_user);
 //    reg_user.beginGroup("Updates");
