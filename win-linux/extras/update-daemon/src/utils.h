@@ -84,6 +84,7 @@ bool unzipArchive(const wstring &zipFilePath, const wstring &folderPath);
 
 namespace Logger
 {
+void AllowWriteLog();
 void WriteLog(const wstring &filePath, const wstring &log);
 }
 

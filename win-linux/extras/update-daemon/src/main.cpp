@@ -105,6 +105,12 @@ int __cdecl _tmain (int argc, TCHAR *argv[])
 
 VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
 {
+    if (argc > 1) {
+        if (lstrcmpi(argv[1], _T("--log")) == 0) {
+            Logger::AllowWriteLog();
+        }
+    }
+
     gSvcStatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME, SvcCtrlHandler);
     if (gSvcStatusHandle == NULL) {
         wstring err(ADVANCED_ERROR_MESSAGE);

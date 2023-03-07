@@ -513,14 +513,21 @@ bool File::unzipArchive(const wstring &zipFilePath, const wstring &folderPath)
 //    }
 }
 
+bool allow_write_log = false;
+
+void Logger::AllowWriteLog()
+{
+    allow_write_log = true;
+}
+
 void Logger::WriteLog(const wstring &filePath, const wstring &log)
 {   
-#ifdef DEBUG_LOG
-    std::wofstream file(filePath.c_str(), std::ios::app);
-    if (!file.is_open()) {
-        return;
+    if (allow_write_log) {
+        std::wofstream file(filePath.c_str(), std::ios::app);
+        if (!file.is_open()) {
+            return;
+        }
+        file << log << std::endl;
+        file.close();
     }
-    file << log << std::endl;
-    file.close();
-#endif
 }
