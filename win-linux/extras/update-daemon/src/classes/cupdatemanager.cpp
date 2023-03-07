@@ -32,13 +32,12 @@
 
 #include "cupdatemanager.h"
 #include <algorithm>
-#include <iostream>
 #include <functional>
+#include <locale>
+#include <codecvt>
 #include <vector>
 #include "utils.h"
 #include "../../src/defines.h"
-#include "version.h"
-#include "classes/cdownloader.h"
 #include <Windows.h>
 #include <shlwapi.h>
 #include <sstream>
@@ -162,45 +161,11 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
     return true;
 }
 
-class CUpdateManager::CUpdateManagerPrivate
-{
-public:
-    CUpdateManagerPrivate(CUpdateManager *owner)
-    {
-        m_pDownloader = new CDownloader;
-        m_pDownloader->onComplete([=](int error) {
-            const wstring filePath = m_pDownloader->GetFilePath();
-            owner->onCompleteSlot(error, filePath);
-        });
-        m_pDownloader->onProgress([=](int percent) {
-            owner->onProgressSlot(percent);
-        });
-    }
-
-    virtual ~CUpdateManagerPrivate()
-    {
-        delete m_pDownloader, m_pDownloader = nullptr;
-    }
-
-    void downloadFile(const wstring &url, const wstring &filePath)
-    {
-        m_pDownloader->downloadFile(url, filePath);
-    }
-
-    void stop()
-    {
-        m_pDownloader->stop();
-    }
-
-private:
-    CDownloader  * m_pDownloader = nullptr;
-};
-
 CUpdateManager::CUpdateManager(CObject *parent):
     CObject(parent),
     m_downloadMode(Mode::CHECK_UPDATES),
     m_socket(new CSocket(SENDER_PORT, RECEIVER_PORT)),
-    m_pimpl(new CUpdateManagerPrivate(this))
+    m_pDownloader(new CDownloader)
 {
     init();
 }
@@ -211,33 +176,18 @@ CUpdateManager::~CUpdateManager()
         m_future_clear.wait();
     if (m_future_unzip.valid())
         m_future_unzip.wait();
-    delete m_pimpl, m_pimpl = nullptr;
+    delete m_pDownloader, m_pDownloader = nullptr;
     delete m_socket, m_socket = nullptr;
-}
-
-void CUpdateManager::onCompleteSlot(const int error, const wstring &filePath)
-{
-    if (error == 0) {
-        switch (m_downloadMode) {
-        case Mode::CHECK_UPDATES:
-            sendMessage(MSG_LoadCheckFinished, filePath);
-            break;
-        case Mode::DOWNLOAD_UPDATES:
-            sendMessage(MSG_LoadUpdateFinished, filePath);
-            break;
-        default:
-            break;
-        }
-    } else
-    if (error == 1) {
-        // Pause or Stop
-    } else {
-        sendMessage(MSG_OtherError, L"Server connection error!");
-    }
 }
 
 void CUpdateManager::init()
 {
+    m_pDownloader->onComplete([=](int error) {
+        onCompleteSlot(error, m_pDownloader->GetFilePath());
+    });
+    m_pDownloader->onProgress([=](int percent) {
+        onProgressSlot(percent);
+    });
     m_socket->onMessageReceived([=](void *data, size_t size) {
         wstring str((const wchar_t*)data), tmp;
         vector<wstring> params;
@@ -249,20 +199,20 @@ void CUpdateManager::init()
             switch (std::stoi(params[0])) {
             case MSG_CheckUpdates: {
                 m_downloadMode = Mode::CHECK_UPDATES;
-                if (m_pimpl)
-                    m_pimpl->downloadFile(params[1], generateTmpFileName(L".json"));
+                if (m_pDownloader)
+                    m_pDownloader->downloadFile(params[1], generateTmpFileName(L".json"));
                 break;
             }
             case MSG_LoadUpdates: {
                 m_downloadMode = Mode::DOWNLOAD_UPDATES;
-                if (m_pimpl)
-                    m_pimpl->downloadFile(params[1], generateTmpFileName(L".zip"));
+                if (m_pDownloader)
+                    m_pDownloader->downloadFile(params[1], generateTmpFileName(L".zip"));
                 break;
             }
             case MSG_StopDownload: {
                 m_downloadMode = Mode::CHECK_UPDATES;
-                if (m_pimpl)
-                    m_pimpl->stop();
+                if (m_pDownloader)
+                    m_pDownloader->stop();
                 break;
             }
             case MSG_UnzipIfNeeded:
@@ -284,26 +234,39 @@ void CUpdateManager::init()
     });
 
     m_socket->onError([](const char* error) {
-        /*size_t num;
-        wchar_t errorDescription[20];
-        mbstowcs_s(&num, errorDescription, error, strlen(error) + 1);
-        LPTSTR errorDescription = (LPTSTR)_T("Testing error messages...");
-        SvcReportEvent(errorDescription);*/
-        //Logger::WriteLog("E:/log.txt", error, 0);
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        Logger::WriteLog(DEFAULT_LOG_FILE, converter.from_bytes(error));
     });
+}
+
+void CUpdateManager::onCompleteSlot(const int error, const wstring &filePath)
+{
+    if (error == 0) {
+        switch (m_downloadMode) {
+        case Mode::CHECK_UPDATES:
+            sendMessage(MSG_LoadCheckFinished, filePath);
+            break;
+        case Mode::DOWNLOAD_UPDATES:
+            sendMessage(MSG_LoadUpdateFinished, filePath);
+            break;
+        default:
+            break;
+        }
+    } else
+    if (error == 1) {
+        // Pause or Stop
+    } else
+    if (error == -1) {
+        sendMessage(MSG_OtherError, L"Update download failed: out of memory!");
+    } else {
+        sendMessage(MSG_OtherError, L"Server connection error!");
+    }
 }
 
 void CUpdateManager::onProgressSlot(const int percent)
 {
     if (m_downloadMode == Mode::DOWNLOAD_UPDATES)
         sendMessage(MSG_Progress, to_wstring(percent));
-}
-
-bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)
-{
-    wstring str = to_wstring(cmd) + L"|" + param1 + L"|" + param2 + L"|" + param3;
-    size_t sz = str.size() * sizeof(str.front());
-    return m_socket->sendMessage((void*)str.c_str(), sz);
 }
 
 void CUpdateManager::unzipIfNeeded(const wstring &filePath, const wstring &newVersion)
@@ -456,4 +419,11 @@ void CUpdateManager::startReplacingFiles()
     // Restart program
     if (!File::runProcess(appPath + APP_LAUNCH_NAME, L""))
         Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!");
+}
+
+bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)
+{
+    wstring str = to_wstring(cmd) + L"|" + param1 + L"|" + param2 + L"|" + param3;
+    size_t sz = str.size() * sizeof(str.front());
+    return m_socket->sendMessage((void*)str.c_str(), sz);
 }

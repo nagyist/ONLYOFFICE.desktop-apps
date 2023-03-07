@@ -34,8 +34,9 @@
 #define CUPDATEMANAGER_H
 
 #include "classes/cobject.h"
+#include "classes/cdownloader.h"
+#include "classes/csocket.h"
 #include <future>
-#include "csocket.h"
 
 using std::wstring;
 using std::future;
@@ -49,8 +50,12 @@ public:
 
 private:
     void init();
+    void onCompleteSlot(const int error, const wstring &filePath);
+    void onProgressSlot(const int percent);
     void unzipIfNeeded(const wstring &filePath, const wstring &newVersion);
-    void clearTempFiles(const wstring &prefix, const wstring &except = wstring());
+    void clearTempFiles(const wstring &prefix, const wstring &except = wstring());    
+    void restoreFromBackup(const wstring &appPath, const wstring &updPath, const wstring &tmpPath);
+    void startReplacingFiles();
     bool sendMessage(int cmd,
                      const wstring &param1 = L"null",
                      const wstring &param2 = L"null",
@@ -60,19 +65,12 @@ private:
     int          m_downloadMode;
     future<void> m_future_unzip,
                  m_future_clear;
-
-    CSocket *m_socket = nullptr;
-    class CUpdateManagerPrivate;
-    CUpdateManagerPrivate *m_pimpl = nullptr;
+    CSocket     *m_socket = nullptr;
+    CDownloader *m_pDownloader = nullptr;
 
     enum Mode {
         CHECK_UPDATES=0, DOWNLOAD_CHANGELOG=1, DOWNLOAD_UPDATES=2
     };
-
-    void onCompleteSlot(const int error, const wstring &filePath);
-    void onProgressSlot(const int percent);
-    void restoreFromBackup(const wstring &appPath, const wstring &updPath, const wstring &tmpPath);
-    void startReplacingFiles();
 };
 
 #endif // CUPDATEMANAGER_H
