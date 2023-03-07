@@ -35,6 +35,8 @@
 #include "classes/capplication.h"
 #include "classes/cupdatemanager.h"
 
+#define INSTANCE_RECEIVER_PORT 12015
+
 SERVICE_STATUS          gSvcStatus;
 SERVICE_STATUS_HANDLE   gSvcStatusHandle;
 HANDLE                  gSvcStopEvent = NULL;
@@ -86,6 +88,19 @@ int __cdecl _tmain (int argc, TCHAR *argv[])
         if (lstrcmpi(argv[1], _T("--update_dacl")) == 0) {
             //SvcControl::DoUpdateSvcDacl(pTrusteeName);
             return 0;
+        } else
+        if (lstrcmpi(argv[1], _T("--run-as-app")) == 0) {
+            CSocket socket(0, INSTANCE_RECEIVER_PORT);
+            if (!socket.isPrimaryInstance())
+                return 0;
+
+            CApplication app;
+            CUpdateManager upd;
+            socket.onMessageReceived([&app](void *buff, size_t bufsize) {
+                if (strcmp((const char*)buff, "stop"))
+                    app.exit(0);
+            });
+            return app.exec();
         }
     }
 

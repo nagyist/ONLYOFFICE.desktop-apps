@@ -47,6 +47,7 @@ public:
     FnVoidCharPtr m_error_callback = nullptr;
     std::future<void> m_future;
     int m_sender_port;
+    bool m_socket_created = false;
     static bool run;
 };
 
@@ -189,12 +190,11 @@ CSocket::CSocket(int sender_port, int receiver_port) :
 {
     pimpl->m_sender_port = sender_port;
     pimpl->m_future = std::async(std::launch::async, [=]() {
-        bool socket_created = false;
-        while (pimpl->run && !(socket_created = pimpl->createSocket(receiver_port))) {
+        while (pimpl->run && !(pimpl->m_socket_created = pimpl->createSocket(receiver_port))) {
             pimpl->postError("Unable to create socket, retrying after 4 seconds.");
             Sleep(RETRIES_DELAY_MS);
         }
-        if (socket_created)
+        if (pimpl->m_socket_created)
             pimpl->startReadMessages();
     });
 }
@@ -208,6 +208,11 @@ CSocket::~CSocket()
         pimpl->m_future.wait();
     WSACleanup();
     delete pimpl;
+}
+
+bool CSocket::isPrimaryInstance()
+{
+    return pimpl->m_socket_created;
 }
 
 bool CSocket::sendMessage(void *data, size_t size)

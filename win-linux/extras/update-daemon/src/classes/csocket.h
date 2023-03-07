@@ -28,6 +28,7 @@ public:
     ~CSocket();
 
     /* callback */
+    bool isPrimaryInstance();
     bool sendMessage(void *data, size_t size);
     void onMessageReceived(FnVoidData callback);
     void onError(FnVoidCharPtr callback);
