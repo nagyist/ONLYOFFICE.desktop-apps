@@ -33,13 +33,8 @@
 #include "cupdatemanager.h"
 #include <QApplication>
 #include <QSettings>
-#include <QDirIterator>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRegularExpression>
-#include <algorithm>
-#include <iostream>
-#include <functional>
 #include <vector>
 #include <sstream>
 #include "utils.h"
@@ -48,8 +43,8 @@
 #include "clangater.h"
 #include "components/cmessage.h"
 #include "cascapplicationmanagerwrapper.h"
-#ifdef Q_OS_WIN
-# include <QCryptographicHash>
+#include <QCryptographicHash>
+#ifdef _WIN32
 # include <Windows.h>
 # include "platform_win/updatedialog.h"
 # define DAEMON_NAME "/update-daemon.exe"
@@ -69,8 +64,8 @@ using std::vector;
 
 auto currentArch()->QString
 {
-#ifdef Q_OS_WIN
-# ifdef Q_OS_WIN64
+#ifdef _WIN32
+# ifdef _WIN64
     return "_x64";
 # else
     return "_x86";
@@ -151,18 +146,6 @@ auto getFileHash(const QString &fileName)->QByteArray
 
 auto runProcess(const WCHAR *fileName, WCHAR *args)->BOOL
 {
-//    PROCESS_INFORMATION ProcessInfo;
-//    STARTUPINFO StartupInfo;
-//    ZeroMemory(&StartupInfo, sizeof(StartupInfo));
-//    StartupInfo.cb = sizeof(StartupInfo);
-//    if (CreateProcessW(fileName, args, NULL, NULL, FALSE,
-//                       CREATE_NO_WINDOW, NULL, NULL,
-//                       &StartupInfo, &ProcessInfo)) {
-//        //WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
-//        CloseHandle(ProcessInfo.hThread);
-//        CloseHandle(ProcessInfo.hProcess);
-//        return TRUE;
-//    }
     SHELLEXECUTEINFO shExInfo = {0};
     shExInfo.cbSize = sizeof(shExInfo);
     shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE | SEE_MASK_FLAG_NO_UI;
@@ -250,11 +233,9 @@ CUpdateManager::CUpdateManager(QObject *parent):
 #endif
     if ( !m_checkUrl.empty() && isDirectoryValid) {
         //m_pimpl = new CUpdateManagerPrivate(this);
-#ifdef __linux__
-        m_pTimer = new QTimer(this);
-        m_pTimer->setSingleShot(false);
-        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
-#endif
+//        m_pTimer = new QTimer(this);
+//        m_pTimer->setSingleShot(false);
+//        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
         init();
     }
 }
@@ -273,18 +254,12 @@ void CUpdateManager::init()
     bool checkOnStartup = true;
     GET_REGISTRY_USER(reg_user);
     reg_user.beginGroup("Updates");
-#ifdef _WIN32
     m_savedPackageData->fileName = reg_user.value("Updates/file", QString()).toString();
     m_savedPackageData->hash = reg_user.value("Updates/hash", QByteArray()).toByteArray();
     m_savedPackageData->version = reg_user.value("Updates/version", QString()).toString();
+//    m_lastCheck = time_t(reg_user.value("Updates/last_check", 0).toLongLong());
     reg_user.endGroup();
     checkOnStartup = (getUpdateMode() != UpdateMode::DISABLE);
-#else
-    m_lastCheck = time_t(reg_user.value("Updates/last_check", 0).toLongLong());
-    reg_user.endGroup();
-    m_currentRate = getUpdateMode();
-    checkOnStartup = (m_currentRate != UpdateInterval::NEVER);
-#endif
     if (checkOnStartup) {
         m_pCheckOnStartupTimer = new QTimer(this);
         m_pCheckOnStartupTimer->setSingleShot(true);
@@ -312,7 +287,7 @@ void CUpdateManager::init()
 
             case MSG_ShowStartInstallMessage: {
                 m_lock = false;
-                QMetaObject::invokeMethod(this->m_dialogSchedule,
+                QMetaObject::invokeMethod(m_dialogSchedule,
                                           "addToSchedule",
                                           Qt::QueuedConnection,
                                           Q_ARG(QString, QString("showStartInstallMessage")));
@@ -323,13 +298,6 @@ void CUpdateManager::init()
                 QMetaObject::invokeMethod(this, "onProgressSlot", Qt::QueuedConnection, Q_ARG(int, std::stoi(params[1])));
                 break;
 
-            case MSG_DownloadingError: {
-                /*auto wgt = QApplication::activeWindow();
-                if (wgt && wgt->objectName() == "MainWindow" && !wgt->isMinimized())
-                    CMessage::warning(wgt, tr("Server connection error!"));*/
-                break;
-            }
-
             case MSG_OtherError:
                 QMetaObject::invokeMethod(this, "onError", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdWString(params[1])));
                 break;
@@ -337,7 +305,6 @@ void CUpdateManager::init()
             default:
                 break;
             }
-            //qDebug() << QString::fromStdWString(params[0]) << QString::fromStdWString(params[1]) << QString::fromStdWString(params[2]) << QString::fromStdWString(params[3]);
         }
     });
 }
@@ -349,73 +316,46 @@ void CUpdateManager::clearTempFiles(const QString &except)
         lock = true;
         sendMessage(MSG_ClearTempFiles, TEXT(FILE_PREFIX), except.toStdWString());
     }
-#ifdef _WIN32
     if (except.isEmpty())
         savePackageData();
-#endif
 }
 
 void CUpdateManager::checkUpdates()
 {
     destroyStartupTimer(m_pCheckOnStartupTimer);
     m_newVersion.clear();
-#ifdef Q_OS_WIN
     m_packageData->clear();
-#else
-    m_lastCheck = time(nullptr);
-    GET_REGISTRY_USER(reg_user);
-    reg_user.beginGroup("Updates");
-    reg_user.setValue("Updates/last_check", static_cast<qlonglong>(m_lastCheck));
-    reg_user.endGroup();
-#endif
+//    m_lastCheck = time(nullptr);
+//    GET_REGISTRY_USER(reg_user);
+//    reg_user.beginGroup("Updates");
+//    reg_user.setValue("Updates/last_check", static_cast<qlonglong>(m_lastCheck));
+//    reg_user.endGroup();
 
     if (!sendMessage(MSG_CheckUpdates, m_checkUrl)) {
         criticalMsg(QObject::tr("An error occurred while check updates: Update Service not found!"));
     }
-#ifndef Q_OS_WIN
-    QTimer::singleShot(3000, this, [=]() {
-        updateNeededCheking();
-    });
-#endif
+//    QTimer::singleShot(3000, this, [=]() {
+//        updateNeededCheking();
+//    });
 }
 
 void CUpdateManager::updateNeededCheking()
 {
-#ifdef Q_OS_WIN
     checkUpdates();
-#else
-    if (m_pTimer) {
-        m_pTimer->stop();
-        int interval = 0;
-        const time_t DAY_TO_SEC = 24*3600;
-        const time_t WEEK_TO_SEC = 7*24*3600;
-        const time_t curr_time = time(nullptr);
-        const time_t elapsed_time = curr_time - m_lastCheck;
-        switch (m_currentRate) {
-        case UpdateInterval::DAY:
-            if (elapsed_time > DAY_TO_SEC) {
-                checkUpdates();
-            } else {
-                interval = static_cast<int>(DAY_TO_SEC - elapsed_time);
-                m_pTimer->setInterval(interval*1000);
-                m_pTimer->start();
-            }
-            break;
-        case UpdateInterval::WEEK:
-            if (elapsed_time > WEEK_TO_SEC) {
-                checkUpdates();
-            } else {
-                interval = static_cast<int>(WEEK_TO_SEC - elapsed_time);
-                m_pTimer->setInterval(interval*1000);
-                m_pTimer->start();
-            }
-            break;
-        case UpdateInterval::NEVER:
-        default:
-            break;
-        }
-    }
-#endif
+//    if (m_pTimer) {
+//        m_pTimer->stop();
+//        int interval = 0;
+//        const time_t DAY_TO_SEC = 24*3600;
+//        const time_t curr_time = time(nullptr);
+//        const time_t elapsed_time = curr_time - m_lastCheck;
+//        if (elapsed_time > DAY_TO_SEC) {
+//            checkUpdates();
+//        } else {
+//            interval = static_cast<int>(DAY_TO_SEC - elapsed_time);
+//            m_pTimer->setInterval(interval*1000);
+//            m_pTimer->start();
+//        }
+//    }
 }
 
 #ifdef Q_OS_WIN
@@ -523,22 +463,13 @@ void CUpdateManager::scheduleRestartForUpdate()
 void CUpdateManager::setNewUpdateSetting(const QString& _rate)
 {
     GET_REGISTRY_USER(reg_user);
-#ifdef _WIN32
     reg_user.setValue("autoUpdateMode", _rate);
     int mode = (_rate == "silent") ?
                     UpdateMode::SILENT : (_rate == "ask") ?
                         UpdateMode::ASK : UpdateMode::DISABLE;
     if (mode == UpdateMode::DISABLE)
         destroyStartupTimer(m_pCheckOnStartupTimer);
-#else
-    reg_user.setValue("checkUpdatesInterval", _rate);
-    m_currentRate = (_rate == "never") ?
-                UpdateInterval::NEVER : (_rate == "day") ?
-                    UpdateInterval::DAY : UpdateInterval::WEEK;
-    if (m_currentRate == UpdateInterval::NEVER)
-        destroyStartupTimer(m_pCheckOnStartupTimer);
-    QTimer::singleShot(3000, this, &CUpdateManager::updateNeededCheking);
-#endif
+//    QTimer::singleShot(3000, this, &CUpdateManager::updateNeededCheking);
 }
 
 void CUpdateManager::cancelLoading()
@@ -560,17 +491,10 @@ void CUpdateManager::skipVersion()
 int CUpdateManager::getUpdateMode()
 {
     GET_REGISTRY_USER(reg_user);
-#ifdef _WIN32
     const QString mode = reg_user.value("autoUpdateMode", "ask").toString();
     return (mode == "silent") ?
                 UpdateMode::SILENT : (mode == "ask") ?
                     UpdateMode::ASK : UpdateMode::DISABLE;
-#else
-    const QString interval = reg_user.value("checkUpdatesInterval", "day").toString();
-    return (interval == "never") ?
-                UpdateInterval::NEVER : (interval == "day") ?
-                    UpdateInterval::DAY : UpdateInterval::WEEK;
-#endif
 }
 
 void CUpdateManager::onLoadCheckFinished(const QString &filePath)
@@ -604,19 +528,21 @@ void CUpdateManager::onLoadCheckFinished(const QString &filePath)
 
         if ( updateExist ) {
         // parse package
-#ifdef Q_OS_WIN
             QJsonObject package = root.value("package").toObject();
-# ifdef Q_OS_WIN64
+#ifdef _WIN32
+# ifdef _WIN64
             QJsonValue win = package.value("win_64");
 # else
             QJsonValue win = package.value("win_32");
 # endif
+#else
+            // TO_DO: linux package parsing
+#endif
             QJsonObject win_params = win.toObject();
             QJsonObject archive = win_params.value("archive").toObject();
             m_packageData->packageUrl = archive.value("url").toString().toStdWString();
-            //m_packageData->packageUrl = win_params.value("url").toString().toStdWString();
             m_packageData->packageArgs = win_params.value("installArguments").toString().toStdWString();
-#endif
+
 
             // parse release notes
             QJsonObject release_notes = root.value("releaseNotes").toObject();
@@ -624,12 +550,10 @@ void CUpdateManager::onLoadCheckFinished(const QString &filePath)
             QJsonValue changelog = release_notes.value(lang);
 
             m_newVersion = version;
-#ifdef Q_OS_WIN
             if (m_newVersion == m_savedPackageData->version
                     && m_savedPackageData->fileName.indexOf(currentArch()) != -1)
                 clearTempFiles(m_savedPackageData->fileName);
             else
-#endif
                 clearTempFiles();
             onCheckFinished(false, true, m_newVersion, changelog.toString());
         } else {
@@ -637,7 +561,7 @@ void CUpdateManager::onLoadCheckFinished(const QString &filePath)
             onCheckFinished(false, false, "", "");
         }
     } else {
-        onCheckFinished(true, false, "", "Error receiving updates...");
+        onCheckFinished(true, false, "", "Error opening JSON...");
     }
 }
 
@@ -646,7 +570,6 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
     Q_UNUSED(changelog);
     if (!error && updateExist) {
         AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(version));
-#ifdef Q_OS_WIN
         switch (getUpdateMode()) {
         case UpdateMode::SILENT:
             loadUpdates();
@@ -655,20 +578,16 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
             m_dialogSchedule->addToSchedule("showUpdateMessage");
             break;
         }
-#else
-        m_dialogSchedule->addToSchedule("showUpdateMessage");
-#endif
     } else
     if (!error && !updateExist) {
         AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
     } else
     if (error) {
-        //qDebug() << "Error while loading check file...";
+        //qDebug() << "Error while opening json file...";
     }
 }
 
 void CUpdateManager::showUpdateMessage(QWidget *parent) {
-# ifdef _WIN32
     int result = WinDlg::showDialog(parent,
                         tr("A new version of %1 is available!").arg(QString(WINDOW_NAME)),
                         tr("%1 %2 is now available (you have %3). "
@@ -689,24 +608,8 @@ void CUpdateManager::showUpdateMessage(QWidget *parent) {
     default:
         break;
     }
-# else
-    CMessage mbox(mainWindow()->handle(), CMessageOpts::moButtons::mbYesDefSkipNo);
-    switch (mbox.info(tr("Do you want to install a new version %1 of the program?").arg(version))) {
-    case MODAL_RESULT_CUSTOM + 0:
-        QDesktopServices::openUrl(QUrl(DOWNLOAD_PAGE, QUrl::TolerantMode));
-        break;
-    case MODAL_RESULT_CUSTOM + 1: {
-        skipVersion();
-        AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
-        break;
-    }
-    default:
-        break;
-    }
-# endif
 }
 
-#ifdef Q_OS_WIN
 void CUpdateManager::showStartInstallMessage(QWidget *parent)
 {
     AscAppManager::sendCommandTo(0, "updates:download", "{\"progress\":\"done\"}");
@@ -732,6 +635,5 @@ void CUpdateManager::showStartInstallMessage(QWidget *parent)
         break;
     }
 }
-#endif
 
 #include "cupdatemanager.moc"

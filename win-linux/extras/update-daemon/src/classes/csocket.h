@@ -18,7 +18,6 @@ enum MsgCommands {
     MSG_ClearTempFiles,
     MSG_Progress,
     MSG_StopDownload,
-    MSG_DownloadingError,
     MSG_OtherError
 };
 

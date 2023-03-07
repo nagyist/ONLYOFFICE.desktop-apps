@@ -41,11 +41,9 @@
 using std::wstring;
 
 
-#ifdef _WIN32
 enum UpdateMode {
     DISABLE=0, SILENT=1, ASK=2
 };
-#endif
 
 class CUpdateManager: public QObject
 {
@@ -58,21 +56,23 @@ public:
     void cancelLoading();
     void skipVersion();
     int  getUpdateMode();
-#ifdef Q_OS_WIN
     QString getVersion() const;
     void scheduleRestartForUpdate();
     void handleAppClose();
     void loadUpdates();
     void installUpdates();
-#endif
+
+public slots:
+    void checkUpdates();
+
+signals:
+    void progresChanged(const int percent);
 
 private:
     void init();
     void clearTempFiles(const QString &except = QString());
     void updateNeededCheking();
     void onCheckFinished(bool error, bool updateExist, const QString &version, const QString &changelog);
-#ifdef Q_OS_WIN
-
     void unzipIfNeeded();
     void savePackageData(const QByteArray &hash = QByteArray(),
                          const QString &version = QString(),
@@ -90,15 +90,10 @@ private:
 
     bool        m_restartForUpdate = false,
                 m_lock = false;
-#else
-    QTimer      *m_pTimer = nullptr;
-    time_t      m_lastCheck;
-    int         m_currentRate;
 
-    enum UpdateInterval {
-        NEVER=0, DAY=1, WEEK=2
-    };
-#endif
+//    QTimer      *m_pTimer = nullptr;
+//    time_t      m_lastCheck;
+
     QTimer      *m_pCheckOnStartupTimer = nullptr;
     wstring     m_checkUrl;
     QString     m_newVersion,
@@ -111,24 +106,13 @@ private:
 
     CSocket *m_socket = nullptr;
 
-public slots:
-    void checkUpdates();
-
-signals:
-#ifdef Q_OS_WIN
-    void progresChanged(const int percent);
-#endif
-
 private slots:
     void onLoadCheckFinished(const QString &filePath);
     void showUpdateMessage(QWidget *parent);
-#ifdef Q_OS_WIN
     void onLoadUpdateFinished(const QString &filePath);
     void showStartInstallMessage(QWidget *parent);
     void onProgressSlot(const int percent);
     void onError(const QString &error);
-#endif
 };
-
 
 #endif // CUPDATEMANAGER_H
