@@ -190,14 +190,15 @@ CUpdateManager::CUpdateManager(QObject *parent):
     auto setUrl = [=] {
         if ( InputArgs::contains(CMD_ARGUMENT_CHECK_URL) ) {
             m_checkUrl = InputArgs::argument_value(CMD_ARGUMENT_CHECK_URL);
-        } else m_checkUrl = QString(URL_APPCAST_UPDATES).toStdWString();
+        } else m_checkUrl = TEXT(URL_APPCAST_UPDATES);
     };
 #ifdef _WIN32
-    GET_REGISTRY_SYSTEM(reg_system)
-    if (Utils::getWinVersion() > Utils::WinVer::WinXP && reg_system.value("CheckForUpdates", true).toBool())
+    if (AppOptions::packageType() == AppOptions::AppPackageType::Portable
+            || AppOptions::packageType() == AppOptions::AppPackageType::ISS)
         setUrl();
 #else
-    setUrl();
+    if (AppOptions::packageType() == AppOptions::AppPackageType::Portable)
+        setUrl();
 #endif
 
     m_appPath = qApp->applicationDirPath();
@@ -205,8 +206,7 @@ CUpdateManager::CUpdateManager(QObject *parent):
 //        m_pTimer = new QTimer(this);
 //        m_pTimer->setSingleShot(false);
 //        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
-        m_isPortableVersion = (AppOptions::packageType() == AppOptions::AppPackageType::Portable);
-        if (m_isPortableVersion)
+        if (AppOptions::packageType() == AppOptions::AppPackageType::Portable)
             runProcess(m_appPath.toStdWString() + DAEMON_NAME, L"--run-as-app");
         init();
     }
@@ -218,7 +218,7 @@ CUpdateManager::~CUpdateManager()
     delete m_savedPackageData, m_savedPackageData = nullptr;
     delete m_dialogSchedule, m_dialogSchedule = nullptr;
     delete m_socket, m_socket = nullptr;
-    if (m_isPortableVersion) {
+    if (AppOptions::packageType() == AppOptions::AppPackageType::Portable) {
         CSocket sock(INSTANCE_SVC_PORT, 0);
         const char msg[] = "stop";
         sock.sendMessage((void*)msg, sizeof(msg));
