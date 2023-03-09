@@ -56,10 +56,8 @@ private:
     void clearTempFiles(const wstring &prefix, const wstring &except = wstring());    
     void restoreFromBackup(const wstring &appPath, const wstring &updPath, const wstring &tmpPath);
     void startReplacingFiles();
-    bool sendMessage(int cmd,
-                     const wstring &param1 = L"null",
-                     const wstring &param2 = L"null",
-                     const wstring &param3 = L"null");
+    bool sendMessage(int cmd, const wstring &param1 = L"null", const wstring &param2 = L"null",
+                        const wstring &param3 = L"null");
 
     bool         m_lock = false;
     int          m_downloadMode;

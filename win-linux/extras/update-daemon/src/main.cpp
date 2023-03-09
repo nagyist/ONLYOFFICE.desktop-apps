@@ -111,7 +111,7 @@ int __cdecl _tmain (int argc, TCHAR *argv[])
     };
 
     if (StartServiceCtrlDispatcher(DispatchTable) == 0) {
-       Utils::ShowMessage(L"ServiceCtrlDispatcher returned error:", true);
+       NS_Utils::ShowMessage(L"ServiceCtrlDispatcher returned error:", true);
        return GetLastError();
     }
 
@@ -122,7 +122,7 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
 {
     if (argc > 1) {
         if (lstrcmpi(argv[1], _T("--log")) == 0) {
-            Logger::AllowWriteLog();
+            NS_Logger::AllowWriteLog();
         }
     }
 
@@ -145,10 +145,7 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
     //   ReportSvcStatus with SERVICE_STOPPED.
     //   Create an event. The control handler function, SvcCtrlHandler,
     //   signals this event when it receives the stop control code.
-    gSvcStopEvent = CreateEvent(NULL,  // default security attributes
-                                TRUE,  // manual reset event
-                                FALSE, // not signaled
-                                NULL); // no name
+    gSvcStopEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (gSvcStopEvent == NULL) {
         ReportSvcStatus(SERVICE_STOPPED, GetLastError(), 0);
         wstring err(ADVANCED_ERROR_MESSAGE);
@@ -200,23 +197,21 @@ DWORD WINAPI SvcWorkerThread(LPVOID lpParam)
     return (DWORD)app.exec();
 }
 
-VOID ReportSvcStatus(DWORD dwCurrentState,
-                     DWORD dwWin32ExitCode,
-                     DWORD dwWaitHint)
+VOID ReportSvcStatus(DWORD currState, DWORD exitCode, DWORD waitHint)
 {
     static DWORD dwCheckPoint = 1;
 
-    gSvcStatus.dwCurrentState = dwCurrentState;
-    gSvcStatus.dwWin32ExitCode = dwWin32ExitCode;
-    gSvcStatus.dwWaitHint = dwWaitHint;
+    gSvcStatus.dwCurrentState = currState;
+    gSvcStatus.dwWin32ExitCode = exitCode;
+    gSvcStatus.dwWaitHint = waitHint;
 
-    if (dwCurrentState == SERVICE_START_PENDING)
+    if (currState == SERVICE_START_PENDING)
         gSvcStatus.dwControlsAccepted = 0;
     else
         gSvcStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
 
-    if ((dwCurrentState == SERVICE_RUNNING) ||
-            (dwCurrentState == SERVICE_STOPPED))
+    if ((currState == SERVICE_RUNNING) ||
+            (currState == SERVICE_STOPPED))
         gSvcStatus.dwCheckPoint = 0;
     else
         gSvcStatus.dwCheckPoint = dwCheckPoint++;

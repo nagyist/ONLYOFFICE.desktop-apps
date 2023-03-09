@@ -73,13 +73,13 @@ auto generateTmpFileName(const wstring &ext)->wstring
         RpcStringFreeW(&wszUuid);
     } else
         uuid_wstr = L"00000000-0000-0000-0000-000000000000";
-    return File::tempPath() + L"/" + TEXT(FILE_PREFIX) + uuid_wstr + currentArch() + ext;
+    return NS_File::tempPath() + L"/" + TEXT(FILE_PREFIX) + uuid_wstr + currentArch() + ext;
 }
 
 auto isSuccessUnpacked(const wstring &successFilePath, const wstring &version)->bool
 {
     list<wstring> lines;
-    if (File::readFile(successFilePath, lines)) {
+    if (NS_File::readFile(successFilePath, lines)) {
         if (std::find(lines.begin(), lines.end(), version) != lines.end())
             return true;
     }
@@ -89,13 +89,13 @@ auto isSuccessUnpacked(const wstring &successFilePath, const wstring &version)->
 auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
                   const wstring &appPath, const wstring &version, wstring &error)->bool
 {
-    if (!File::dirExists(updPath) && !File::makePath(updPath)) {
+    if (!NS_File::dirExists(updPath) && !NS_File::makePath(updPath)) {
         error = L"An error occurred while creating dir: " + updPath;
         return false;
     }
 
     // Extract files
-    if (!File::unzipArchive(zipFilePath, updPath)) {
+    if (!NS_File::unzipArchive(zipFilePath, updPath)) {
         error = L"An error occurred while unpacking zip file!";
         return false;
     }
@@ -103,7 +103,7 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
     auto fillSubpathVector = [&error](const wstring &path, vector<wstring> &vec)->bool {
         list<wstring> filesList;
         wstring _error;
-        if (!File::GetFilesList(path, &filesList, _error)) {
+        if (!NS_File::GetFilesList(path, &filesList, _error)) {
             error = L"An error occurred while get files list: " + _error;
             return false;
         }
@@ -128,7 +128,7 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
                     && appFile != L"/unins000.dat" && appFile != L"/unins000.exe")
                 delList.push_back(appFile);
         }
-        if (!File::writeToFile(updPath + DELETE_LIST, delList))
+        if (!NS_File::writeToFile(updPath + DELETE_LIST, delList))
             return false;
     }
 #endif
@@ -139,21 +139,21 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
         for (auto &updFile : updVec) {
             auto it_appFile = std::find(appVec.begin(), appVec.end(), updFile);
             if (it_appFile != appVec.end()) {
-                auto updFileHash = File::getFileHash(updPath + updFile);
-                if (updFileHash.empty() || updFileHash != File::getFileHash(appPath + *it_appFile))
+                auto updFileHash = NS_File::getFileHash(updPath + updFile);
+                if (updFileHash.empty() || updFileHash != NS_File::getFileHash(appPath + *it_appFile))
                     replList.push_back(updFile);
 
             } else
                 replList.push_back(updFile);
         }
-        if (!File::writeToFile(updPath + REPLACEMENT_LIST, replList))
+        if (!NS_File::writeToFile(updPath + REPLACEMENT_LIST, replList))
             return false;
     }   
 
     // Сreate a file about successful unpacking for use in subsequent launches
     {
         list<wstring> successList{version};
-        if (!File::writeToFile(updPath + SUCCES_UNPACKED, successList))
+        if (!NS_File::writeToFile(updPath + SUCCES_UNPACKED, successList))
             return false;
     }
     return true;
@@ -233,7 +233,7 @@ void CUpdateManager::init()
 
     m_socket->onError([](const char* error) {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        Logger::WriteLog(DEFAULT_LOG_FILE, converter.from_bytes(error));
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, converter.from_bytes(error));
     });
 }
 
@@ -272,33 +272,33 @@ void CUpdateManager::unzipIfNeeded(const wstring &filePath, const wstring &newVe
     if (m_lock)
         return;
     m_lock = true;
-    const wstring updPath = File::tempPath() + UPDATE_PATH;
+    const wstring updPath = NS_File::tempPath() + UPDATE_PATH;
     auto unzip = [=]()->void {
         wstring error(L"unzipArchive() error");
-        if (!unzipArchive(filePath, updPath, File::appPath(), newVersion , error)) {
+        if (!unzipArchive(filePath, updPath, NS_File::appPath(), newVersion , error)) {
             m_lock = false;
             if (!sendMessage(MSG_OtherError, error)) {
-                Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
             }
             return;
         }
         m_lock = false;
         if (!sendMessage(MSG_ShowStartInstallMessage)) {
-            Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
         }
     };
 
-    if (!File::dirExists(updPath) || File::dirIsEmpty(updPath)) {
+    if (!NS_File::dirExists(updPath) || NS_File::dirIsEmpty(updPath)) {
         m_future_unzip = std::async(std::launch::async, unzip);
     } else {
         if (isSuccessUnpacked(updPath + SUCCES_UNPACKED, newVersion)) {
             m_lock = false;
             if (!sendMessage(MSG_ShowStartInstallMessage)) {
-                Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
             }
         } else {
-            if (!File::removeDirRecursively(updPath)) {
-                Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+            if (!NS_File::removeDirRecursively(updPath)) {
+                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
             }
             m_future_unzip = std::async(std::launch::async, unzip);
         }
@@ -310,8 +310,8 @@ void CUpdateManager::clearTempFiles(const wstring &prefix, const wstring &except
     m_future_clear = std::async(std::launch::async, [=]() {
         list<wstring> filesList;
         wstring _error;
-        if (!File::GetFilesList(File::tempPath(), &filesList, _error)) {
-            Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+        if (!NS_File::GetFilesList(NS_File::tempPath(), &filesList, _error)) {
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
             return;
         }
         for (auto &filePath : filesList) {
@@ -319,7 +319,7 @@ void CUpdateManager::clearTempFiles(const wstring &prefix, const wstring &except
                 wstring lcFilePath(filePath);
                 std::transform(lcFilePath.begin(), lcFilePath.end(), lcFilePath.begin(), ::tolower);
                 if (lcFilePath.find(prefix) != wstring::npos && filePath != except)
-                    File::removeFile(filePath);
+                    NS_File::removeFile(filePath);
             }
         }
     });
@@ -328,95 +328,95 @@ void CUpdateManager::clearTempFiles(const wstring &prefix, const wstring &except
 void CUpdateManager::restoreFromBackup(const wstring &appPath, const wstring &updPath, const wstring &tmpPath)
 {
     // Restore from backup
-    if (!File::replaceFolderContents(tmpPath, appPath))
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore files from backup!");
+    if (!NS_File::replaceFolderContents(tmpPath, appPath))
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore files from backup!");
     else
-        File::removeDirRecursively(tmpPath);
+        NS_File::removeDirRecursively(tmpPath);
 
     // Restore executable name
-    if (!File::replaceFile(appPath + TEMP_DAEMON_NAME, appPath + DAEMON_NAME))
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name!");
+    if (!NS_File::replaceFile(appPath + TEMP_DAEMON_NAME, appPath + DAEMON_NAME))
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name!");
 
-    File::removeDirRecursively(updPath);
+    NS_File::removeDirRecursively(updPath);
 }
 
 void CUpdateManager::startReplacingFiles()
 {
-    wstring appPath = File::appPath();
-    wstring appFilePath = File::appPath() + DAEMON_NAME;
-    wstring updPath = File::tempPath() + UPDATE_PATH;
-    wstring tmpPath = File::tempPath() + BACKUP_PATH;
-    if (!File::dirExists(updPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while searching dir: " + updPath);
+    wstring appPath = NS_File::appPath();
+    wstring appFilePath = NS_File::appPath() + DAEMON_NAME;
+    wstring updPath = NS_File::tempPath() + UPDATE_PATH;
+    wstring tmpPath = NS_File::tempPath() + BACKUP_PATH;
+    if (!NS_File::dirExists(updPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while searching dir: " + updPath);
         return;
     }
-    if (File::dirExists(tmpPath) && !File::dirIsEmpty(tmpPath)
-            && !File::removeDirRecursively(tmpPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while deleting Backup dir: " + tmpPath);
+    if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
+            && !NS_File::removeDirRecursively(tmpPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while deleting Backup dir: " + tmpPath);
         return;
     }
-    if (!File::dirExists(tmpPath) && !File::makePath(tmpPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while creating dir: " + tmpPath);
+    if (!NS_File::dirExists(tmpPath) && !NS_File::makePath(tmpPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while creating dir: " + tmpPath);
         return;
     }
 
     // Remove old update-daemon
-    if (File::fileExists(appPath + TEMP_DAEMON_NAME)
-            && !File::removeFile(appPath + TEMP_DAEMON_NAME)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"Unable to remove temp file: " + appPath + TEMP_DAEMON_NAME);
+    if (NS_File::fileExists(appPath + TEMP_DAEMON_NAME)
+            && !NS_File::removeFile(appPath + TEMP_DAEMON_NAME)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Unable to remove temp file: " + appPath + TEMP_DAEMON_NAME);
         return;
     }
 
     list<wstring> repList;
-    if (!File::readFile(updPath + REPLACEMENT_LIST, repList))
+    if (!NS_File::readFile(updPath + REPLACEMENT_LIST, repList))
         return;
 
 #ifdef ALLOW_DELETE_UNUSED_FILES
     list<wstring> delList;
-    if (!File::readFile(updPath + DELETE_LIST, delList))
+    if (!NS_File::readFile(updPath + DELETE_LIST, delList))
         return;
 #endif
 
     // Rename current executable
     wstring appFileRenamedPath = appPath + TEMP_DAEMON_NAME;
-    if (!File::replaceFile(appFilePath, appFileRenamedPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while renaming the daemon file!");
+    if (!NS_File::replaceFile(appFilePath, appFileRenamedPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while renaming the daemon file!");
         return;
     }
 
 #ifdef ALLOW_DELETE_UNUSED_FILES
     // Replace unused files to Backup
-    if (!File::replaceListOfFiles(delList, appPath, tmpPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while replace unused files! Restoring from the backup will start.");
+    if (!NS_File::replaceListOfFiles(delList, appPath, tmpPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while replace unused files! Restoring from the backup will start.");
         restoreFromBackup(appPath, updPath, tmpPath);
         return;
     }
 #endif
 
     // Move update files to app path
-    if (!File::replaceListOfFiles(repList, updPath, appPath, tmpPath)) {
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while copy files! Restoring from the backup will start.");
+    if (!NS_File::replaceListOfFiles(repList, updPath, appPath, tmpPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while copy files! Restoring from the backup will start.");
 
         // Remove new update-daemon.exe if exist
-        if (File::fileExists(appFilePath))
-            File::removeFile(appFilePath);
+        if (NS_File::fileExists(appFilePath))
+            NS_File::removeFile(appFilePath);
 
         restoreFromBackup(appPath, updPath, tmpPath);
         return;
     }
 
     // Remove Update and Temp dirs
-    File::removeDirRecursively(updPath);
-    File::removeDirRecursively(tmpPath);
+    NS_File::removeDirRecursively(updPath);
+    NS_File::removeDirRecursively(tmpPath);
 
     // Restore executable name if there was no new version
     if (std::find(repList.begin(), repList.end(), DAEMON_NAME) == repList.end())
-        if (!File::replaceFile(appFileRenamedPath, appFilePath))
-            Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name: " + appFileRenamedPath);
+        if (!NS_File::replaceFile(appFileRenamedPath, appFilePath))
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name: " + appFileRenamedPath);
 
     // Restart program
-    if (!File::runProcess(appPath + APP_LAUNCH_NAME, L""))
-        Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!");
+    if (!NS_File::runProcess(appPath + APP_LAUNCH_NAME, L""))
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!");
 }
 
 bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)

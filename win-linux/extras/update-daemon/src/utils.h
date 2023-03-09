@@ -41,30 +41,26 @@ using std::wstring;
 using std::to_wstring;
 using std::list;
 
-#define DEFAULT_LOG_FILE File::tempPath() + L"/svclog.txt"
+#define DEFAULT_LOG_FILE NS_File::tempPath() + L"/svclog.txt"
 #define DEFAULT_ERROR_MESSAGE L"An error occurred: " + \
     wstring(TEXT(__FUNCTION__)) + L" Line: " + to_wstring(__LINE__)
 #define ADVANCED_ERROR_MESSAGE DEFAULT_ERROR_MESSAGE + \
-    L" " + Utils::GetLastErrorAsString()
+    L" " + NS_Utils::GetLastErrorAsString()
 
-namespace Utils
+namespace NS_Utils
 {
 wstring GetLastErrorAsString();
 void ShowMessage(wstring str, bool showError = false);
 }
 
-namespace File
+namespace NS_File
 {
 bool GetFilesList(const wstring &path, list<wstring> *lst, wstring &error);
 bool readFile(const wstring &filePath, list<wstring> &linesList);
 bool writeToFile(const wstring &filePath, list<wstring> &linesList);
-bool replaceListOfFiles(const list<wstring> &filesList,
-                        const wstring &fromDir,
-                        const wstring &toDir,
-                        const wstring &tmpDir = L"");
-bool replaceFolderContents(const wstring &fromDir,
-                           const wstring &toDir,
-                           const wstring &tmpDir = L"");
+bool replaceListOfFiles(const list<wstring> &filesList, const wstring &from,
+                            const wstring &to, const wstring &tmp = L"");
+bool replaceFolderContents(const wstring &from, const wstring &to, const wstring &tmp = L"");
 bool runProcess(const wstring &fileName, const wstring &args);
 bool fileExists(const wstring &filePath);
 bool dirExists(const wstring &dirName);
@@ -82,7 +78,7 @@ string getFileHash(const wstring &fileName);
 bool unzipArchive(const wstring &zipFilePath, const wstring &folderPath);
 }
 
-namespace Logger
+namespace NS_Logger
 {
 void AllowWriteLog();
 void WriteLog(const wstring &filePath, const wstring &log);
