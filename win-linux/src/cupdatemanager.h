@@ -74,9 +74,7 @@ private:
     void updateNeededCheking();
     void onCheckFinished(bool error, bool updateExist, const QString &version, const QString &changelog);
     void unzipIfNeeded();
-    void savePackageData(const QByteArray &hash = QByteArray(), const QString &version = QString(),
-                            const QString &fileName = QString());
-
+    void savePackageData(const QString &version = QString(), const QString &fileName = QString());
     bool sendMessage(int cmd, const wstring &param1 = L"null", const wstring &param2 = L"null",
                         const wstring &param3 = L"null");
 
@@ -93,8 +91,6 @@ private:
 
     QTimer      *m_pCheckOnStartupTimer = nullptr;
     wstring     m_checkUrl;
-    QString     m_newVersion,
-                m_appPath;
 
     class DialogSchedule;
     DialogSchedule *m_dialogSchedule = nullptr;
