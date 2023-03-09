@@ -74,14 +74,11 @@ private:
     void updateNeededCheking();
     void onCheckFinished(bool error, bool updateExist, const QString &version, const QString &changelog);
     void unzipIfNeeded();
-    void savePackageData(const QByteArray &hash = QByteArray(),
-                         const QString &version = QString(),
-                         const QString &fileName = QString());
+    void savePackageData(const QByteArray &hash = QByteArray(), const QString &version = QString(),
+                            const QString &fileName = QString());
 
-    bool sendMessage(int cmd,
-                     const wstring &param1 = L"null",
-                     const wstring &param2 = L"null",
-                     const wstring &param3 = L"null");
+    bool sendMessage(int cmd, const wstring &param1 = L"null", const wstring &param2 = L"null",
+                        const wstring &param3 = L"null");
 
     struct PackageData;
     struct SavedPackageData;
@@ -89,7 +86,6 @@ private:
     SavedPackageData *m_savedPackageData;
 
     bool        m_restartForUpdate = false,
-                m_isPortableVersion = false,
                 m_lock = false;
 
 //    QTimer      *m_pTimer = nullptr;

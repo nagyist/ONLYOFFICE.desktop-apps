@@ -343,7 +343,6 @@ void CUpdateManager::updateNeededCheking()
 //    }
 }
 
-#ifdef Q_OS_WIN
 void CUpdateManager::onProgressSlot(const int percent)
 {
     emit progresChanged(percent);
@@ -443,7 +442,6 @@ void CUpdateManager::scheduleRestartForUpdate()
 {
     m_restartForUpdate = true;
 }
-#endif
 
 void CUpdateManager::setNewUpdateSetting(const QString& _rate)
 {
