@@ -45,6 +45,7 @@
 #include <cstdio>
 #include <Wincrypt.h>
 #include <WtsApi32.h>
+#include <Softpub.h>
 #include <vector>
 #include <sstream>
 
@@ -507,6 +508,36 @@ namespace NS_File
     //    {
     //        CoUninitialize();
     //    }
+    }
+
+    bool verifyEmbeddedSignature(const wstring &fileName)
+    {
+        WINTRUST_FILE_INFO fileInfo;
+        ZeroMemory(&fileInfo, sizeof(fileInfo));
+        fileInfo.cbStruct = sizeof(WINTRUST_FILE_INFO);
+        fileInfo.pcwszFilePath = fileName.c_str();
+        fileInfo.hFile = NULL;
+        fileInfo.pgKnownSubject = NULL;
+
+        GUID guidAction = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+        WINTRUST_DATA winTrustData;
+        ZeroMemory(&winTrustData, sizeof(winTrustData));
+        winTrustData.cbStruct = sizeof(WINTRUST_DATA);
+        winTrustData.pPolicyCallbackData = NULL;
+        winTrustData.pSIPClientData = NULL;
+        winTrustData.dwUIChoice = WTD_UI_NONE;
+        winTrustData.fdwRevocationChecks = WTD_REVOKE_NONE;
+        winTrustData.dwUnionChoice = WTD_CHOICE_FILE;
+        winTrustData.dwStateAction = WTD_STATEACTION_VERIFY;
+        winTrustData.hWVTStateData = NULL;
+        winTrustData.pwszURLReference = NULL;
+        winTrustData.dwUIContext = 0;
+        winTrustData.pFile = &fileInfo;
+
+        LONG lStatus = WinVerifyTrust(NULL, &guidAction, &winTrustData);
+        if (lStatus == ERROR_SUCCESS)
+            return true;
+        return false;
     }
 }
 

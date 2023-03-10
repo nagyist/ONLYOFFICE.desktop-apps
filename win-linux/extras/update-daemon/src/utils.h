@@ -76,6 +76,7 @@ wstring tempPath();
 wstring appPath();
 string getFileHash(const wstring &fileName);
 bool unzipArchive(const wstring &zipFilePath, const wstring &folderPath);
+bool verifyEmbeddedSignature(const wstring &fileName);
 }
 
 namespace NS_Logger
