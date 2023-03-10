@@ -65,11 +65,15 @@ class CUpdateManager::DialogSchedule : public QObject
 public:
     DialogSchedule(QObject *owner);
 public slots:
-    void addToSchedule(const QString &method);
+    void addToSchedule(const QString &method, const QString &text = QString());
 
 private:
+    struct Tag {
+        QString method,
+                text;
+    };
     QTimer *m_timer = nullptr;
-    QVector<QString> m_shedule_vec;
+    QVector<Tag> m_shedule_vec;
 };
 
 CUpdateManager::DialogSchedule::DialogSchedule(QObject *owner) :
@@ -81,9 +85,12 @@ CUpdateManager::DialogSchedule::DialogSchedule(QObject *owner) :
     connect(m_timer, &QTimer::timeout, this, [=] {
         QWidget *wnd = WindowHelper::currentTopWindow();
         if (wnd && !m_shedule_vec.isEmpty()) {
-            QMetaObject::invokeMethod(owner,
-                                      m_shedule_vec.first().toLocal8Bit().data(),
-                                      Qt::QueuedConnection, Q_ARG(QWidget*, wnd));
+            QByteArray method = m_shedule_vec.first().method.toLocal8Bit();
+            QString text = m_shedule_vec.first().text;
+            if (text.isEmpty())
+                QMetaObject::invokeMethod(owner, method.data(), Qt::QueuedConnection, Q_ARG(QWidget*, wnd));
+            else
+                QMetaObject::invokeMethod(owner, method.data(), Qt::QueuedConnection, Q_ARG(QWidget*, wnd), Q_ARG(QString, text));
             m_shedule_vec.removeFirst();
             if (m_shedule_vec.isEmpty())
                 m_timer->stop();
@@ -91,9 +98,9 @@ CUpdateManager::DialogSchedule::DialogSchedule(QObject *owner) :
     });
 }
 
-void CUpdateManager::DialogSchedule::addToSchedule(const QString &method)
+void CUpdateManager::DialogSchedule::addToSchedule(const QString &method, const QString &text)
 {
-    m_shedule_vec.push_back(method);
+    m_shedule_vec.push_back({method, text});
     if (!m_timer->isActive())
         m_timer->start();
 }
@@ -109,12 +116,6 @@ auto currentArch()->QString
 #else
     return "_x64";
 #endif
-}
-
-auto criticalMsg(const QString &msg)
-{
-    wstring lpText = msg.toStdWString();
-    MessageBoxW(NULL, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
 }
 
 auto destroyStartupTimer(QTimer* &timer)->void
@@ -282,6 +283,13 @@ void CUpdateManager::init()
     });
 }
 
+void CUpdateManager::criticalMsg(QWidget *parent, const QString &msg)
+{
+    HWND parent_hwnd = (parent) ? (HWND)parent->winId() : NULL;
+    wstring lpText = msg.toStdWString();
+    MessageBoxW(parent_hwnd, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
+}
+
 void CUpdateManager::clearTempFiles(const QString &except)
 {
     static bool lock = false;
@@ -300,7 +308,7 @@ void CUpdateManager::checkUpdates()
 
 #ifdef CHECK_DIRECTORY
     if (QFileInfo(qApp->applicationDirPath()).baseName() != QString(REG_APP_NAME)) {
-        criticalMsg(tr("This folder configuration does not allow for "
+        m_dialogSchedule->addToSchedule("criticalMsg", tr("This folder configuration does not allow for "
                        "updates! The folder name should be: ") + QString(REG_APP_NAME));
         return;
     }
@@ -313,7 +321,7 @@ void CUpdateManager::checkUpdates()
 //    reg_user.endGroup();
 
     if (!sendMessage(MSG_CheckUpdates, m_checkUrl)) {
-        criticalMsg(QObject::tr("An error occurred while check updates: Update Service not found!"));
+        m_dialogSchedule->addToSchedule("criticalMsg", QObject::tr("An error occurred while check updates: Update Service not found!"));
     }
 //    QTimer::singleShot(3000, this, [=]() {
 //        updateNeededCheking();
@@ -347,7 +355,7 @@ void CUpdateManager::onProgressSlot(const int percent)
 void CUpdateManager::onError(const QString &error)
 {
     m_lock = false;
-    criticalMsg(error);
+    m_dialogSchedule->addToSchedule("criticalMsg", error);
 }
 
 void CUpdateManager::savePackageData(const QString &version, const QString &fileName)
@@ -382,7 +390,7 @@ void CUpdateManager::loadUpdates()
     } else
     if (!m_packageData->packageUrl.empty()) {
         if (!sendMessage(MSG_LoadUpdates, m_packageData->packageUrl)) {
-            criticalMsg(QObject::tr("An error occurred while loading updates: Update Service not found!"));
+            m_dialogSchedule->addToSchedule("criticalMsg", QObject::tr("An error occurred while loading updates: Update Service not found!"));
         }
     }
 }
@@ -406,7 +414,7 @@ void CUpdateManager::onLoadUpdateFinished(const QString &filePath)
 {
     if (getFileHash(filePath) != m_packageData->hash) {
         AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(m_packageData->version));
-        criticalMsg("Update package error: md5 sum does not match the original.");
+        m_dialogSchedule->addToSchedule("criticalMsg", "Update package error: md5 sum does not match the original.");
         return;
     }
     m_packageData->fileName = filePath;
@@ -422,7 +430,7 @@ void CUpdateManager::unzipIfNeeded()
 
     if (!sendMessage(MSG_UnzipIfNeeded, m_packageData->fileName.toStdWString(), m_packageData->version.toStdWString())) {
         m_lock = false;
-        criticalMsg(QObject::tr("An error occurred while unzip updates: Update Service not found!"));
+        m_dialogSchedule->addToSchedule("criticalMsg", QObject::tr("An error occurred while unzip updates: Update Service not found!"));
     }
 }
 
@@ -430,7 +438,7 @@ void CUpdateManager::handleAppClose()
 {
     if ( m_restartForUpdate ) {
         if (!sendMessage(MSG_StartReplacingFiles)) {
-            criticalMsg(QObject::tr("An error occurred while start replacing files: Update Service not found!"));;
+            criticalMsg(nullptr, QObject::tr("An error occurred while start replacing files: Update Service not found!"));
         }
     } else
         sendMessage(MSG_StopDownload);
@@ -563,7 +571,7 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
         AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
     } else
     if (error) {
-        criticalMsg(changelog);
+        m_dialogSchedule->addToSchedule("criticalMsg", changelog);
     }
 }
 

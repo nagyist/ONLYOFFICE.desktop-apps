@@ -104,6 +104,7 @@ private slots:
     void showStartInstallMessage(QWidget *parent);
     void onProgressSlot(const int percent);
     void onError(const QString &error);
+    void criticalMsg(QWidget *parent, const QString &msg);
 };
 
 #endif // CUPDATEMANAGER_H
