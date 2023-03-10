@@ -542,13 +542,12 @@ void CUpdateManager::onLoadCheckFinished(const QString &filePath)
             onCheckFinished(false, false, "", "");
         }
     } else {
-        onCheckFinished(true, false, "", "Error opening JSON...");
+        onCheckFinished(true, false, "", "Error opening JSON file.");
     }
 }
 
 void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString &version, const QString &changelog)
 {
-    Q_UNUSED(changelog);
     if (!error && updateExist) {
         AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(version));
         switch (getUpdateMode()) {
@@ -564,7 +563,7 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
         AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
     } else
     if (error) {
-        criticalMsg("Error while opening JSON file.");
+        criticalMsg(changelog);
     }
 }
 
