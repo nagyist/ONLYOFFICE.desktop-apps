@@ -71,12 +71,18 @@ namespace NS_Utils
         return message;
     }
 
-    void ShowMessage(wstring str, bool showError)
+    int ShowMessage(wstring str, bool showError)
     {
         if (showError)
             str += L" " + GetLastErrorAsString();
-        MessageBoxW(NULL, str.c_str(), TEXT(VER_PRODUCTNAME_STR),
-                    MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
+        wchar_t *title = const_cast<LPTSTR>(TEXT(VER_PRODUCTNAME_STR));
+        int title_size = wcslen(title) * sizeof(wchar_t);
+        DWORD res;
+        DWORD session_id = WTSGetActiveConsoleSessionId();
+        WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, session_id, title, title_size,
+                            const_cast<LPTSTR>(str.c_str()), str.size() * sizeof(wchar_t),
+                            MB_OK | MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND, 8, &res, TRUE);
+        return res;
     }
 }
 

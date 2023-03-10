@@ -40,10 +40,11 @@
 #include "../../src/defines.h"
 #include <Windows.h>
 #include <shlwapi.h>
+#include <tchar.h>
 #include <sstream>
 
-#define UPDATE_PATH      L"/DesktopEditorsUpdates"
-#define BACKUP_PATH      L"/DesktopEditorsBackup"
+#define UPDATE_PATH      TEXT("/" REG_APP_NAME "Updates")
+#define BACKUP_PATH      TEXT("/" REG_APP_NAME "Backup")
 #define APP_LAUNCH_NAME  L"/DesktopEditors.exe"
 #define DAEMON_NAME      L"/update-daemon.exe"
 #define TEMP_DAEMON_NAME L"/~update-daemon.exe"

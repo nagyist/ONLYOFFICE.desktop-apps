@@ -50,7 +50,7 @@ using std::list;
 namespace NS_Utils
 {
 wstring GetLastErrorAsString();
-void ShowMessage(wstring str, bool showError = false);
+int ShowMessage(wstring str, bool showError = false);
 }
 
 namespace NS_File

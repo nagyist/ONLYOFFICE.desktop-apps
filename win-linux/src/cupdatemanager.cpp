@@ -397,6 +397,8 @@ void CUpdateManager::loadUpdates()
 
 void CUpdateManager::installUpdates()
 {
+    if (m_lock)
+        return;
     GET_REGISTRY_USER(reg_user);
     reg_user.beginGroup("Updates");
     const QString ignored_ver = reg_user.value("Updates/ignored_ver").toString();
@@ -488,6 +490,8 @@ int CUpdateManager::getUpdateMode()
 
 void CUpdateManager::onLoadCheckFinished(const QString &filePath)
 {
+    if (m_lock)
+        return;
     QFile jsonFile(filePath);
     if ( jsonFile.open(QIODevice::ReadOnly) ) {
         QByteArray ReplyText = jsonFile.readAll();
