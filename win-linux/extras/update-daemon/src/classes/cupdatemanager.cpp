@@ -46,6 +46,7 @@
 #define UPDATE_PATH      TEXT("/" REG_APP_NAME "Updates")
 #define BACKUP_PATH      TEXT("/" REG_APP_NAME "Backup")
 #define APP_LAUNCH_NAME  L"/DesktopEditors.exe"
+#define APP_LAUNCH_NAME2 L"/editors.exe"
 #define DAEMON_NAME      L"/update-daemon.exe"
 #define TEMP_DAEMON_NAME L"/~update-daemon.exe"
 #define DELETE_LIST      L"/.delete_list.lst"
@@ -351,6 +352,19 @@ void CUpdateManager::startReplacingFiles()
         NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while searching dir: " + updPath);
         return;
     }
+
+#ifndef DONT_VERIFY_SIGNATURE
+    // Verify the signature of executable files
+    if (!NS_File::verifyEmbeddedSignature(updPath + APP_LAUNCH_NAME)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME, true);
+        return;
+    }
+    if (!NS_File::verifyEmbeddedSignature(updPath + APP_LAUNCH_NAME2)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME2, true);
+        return;
+    }
+#endif
+
     if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
             && !NS_File::removeDirRecursively(tmpPath)) {
         NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while deleting Backup dir: " + tmpPath);
