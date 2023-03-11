@@ -349,7 +349,7 @@ void CUpdateManager::startReplacingFiles()
     wstring updPath = NS_File::tempPath() + UPDATE_PATH;
     wstring tmpPath = NS_File::tempPath() + BACKUP_PATH;
     if (!NS_File::dirExists(updPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while searching dir: " + updPath);
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't find folder: " + updPath, true);
         return;
     }
 
@@ -365,44 +365,50 @@ void CUpdateManager::startReplacingFiles()
     }
 #endif
 
+    // Check backup folder
     if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
             && !NS_File::removeDirRecursively(tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while deleting Backup dir: " + tmpPath);
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't delete folder: " + tmpPath, true);
         return;
     }
     if (!NS_File::dirExists(tmpPath) && !NS_File::makePath(tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while creating dir: " + tmpPath);
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't create folder: " + tmpPath, true);
         return;
     }
 
     // Remove old update-daemon
     if (NS_File::fileExists(appPath + TEMP_DAEMON_NAME)
             && !NS_File::removeFile(appPath + TEMP_DAEMON_NAME)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Unable to remove temp file: " + appPath + TEMP_DAEMON_NAME);
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't remove temp file: " + appPath + TEMP_DAEMON_NAME, true);
         return;
     }
 
+    // Read LST files
     list<wstring> repList;
-    if (!NS_File::readFile(updPath + REPLACEMENT_LIST, repList))
+    if (!NS_File::readFile(updPath + REPLACEMENT_LIST, repList)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't read file: " + updPath + REPLACEMENT_LIST, true);
         return;
+    }
 
 #ifdef ALLOW_DELETE_UNUSED_FILES
     list<wstring> delList;
-    if (!NS_File::readFile(updPath + DELETE_LIST, delList))
+    if (!NS_File::readFile(updPath + DELETE_LIST, delList)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't read file: " + updPath + DELETE_LIST, true);
         return;
+    }
 #endif
 
     // Rename current executable
     wstring appFileRenamedPath = appPath + TEMP_DAEMON_NAME;
     if (!NS_File::replaceFile(appFilePath, appFileRenamedPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while renaming the daemon file!");
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't rename file: " + appFilePath, true);
         return;
     }
 
 #ifdef ALLOW_DELETE_UNUSED_FILES
     // Replace unused files to Backup
     if (!NS_File::replaceListOfFiles(delList, appPath, tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while replace unused files! Restoring from the backup will start.");
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while replace unused files! Restoring from the backup will start.", true);
         restoreFromBackup(appPath, updPath, tmpPath);
         return;
     }
@@ -410,7 +416,7 @@ void CUpdateManager::startReplacingFiles()
 
     // Move update files to app path
     if (!NS_File::replaceListOfFiles(repList, updPath, appPath, tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while copy files! Restoring from the backup will start.");
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while copy files! Restoring from the backup will start.", true);
 
         // Remove new update-daemon.exe if exist
         if (NS_File::fileExists(appFilePath))
@@ -427,11 +433,11 @@ void CUpdateManager::startReplacingFiles()
     // Restore executable name if there was no new version
     if (std::find(repList.begin(), repList.end(), DAEMON_NAME) == repList.end())
         if (!NS_File::replaceFile(appFileRenamedPath, appFilePath))
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name: " + appFileRenamedPath);
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name: " + appFileRenamedPath, true);
 
     // Restart program
     if (!NS_File::runProcess(appPath + APP_LAUNCH_NAME, L""))
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!");
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!", true);
 }
 
 bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)
