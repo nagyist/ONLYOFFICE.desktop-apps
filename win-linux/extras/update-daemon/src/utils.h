@@ -82,7 +82,7 @@ bool verifyEmbeddedSignature(const wstring &fileName);
 namespace NS_Logger
 {
 void AllowWriteLog();
-void WriteLog(const wstring &filePath, const wstring &log);
+void WriteLog(const wstring &filePath, const wstring &log, bool showMessage = false);
 }
 
 #endif // UTILS_H

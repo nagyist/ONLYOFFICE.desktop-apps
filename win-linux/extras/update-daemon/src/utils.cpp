@@ -76,7 +76,7 @@ namespace NS_Utils
         if (showError)
             str += L" " + GetLastErrorAsString();
         wchar_t *title = const_cast<LPTSTR>(TEXT(VER_PRODUCTNAME_STR));
-        int title_size = wcslen(title) * sizeof(wchar_t);
+        size_t title_size = wcslen(title) * sizeof(wchar_t);
         DWORD res;
         DWORD session_id = WTSGetActiveConsoleSessionId();
         WTSSendMessageW(WTS_CURRENT_SERVER_HANDLE, session_id, title, title_size,
@@ -556,7 +556,7 @@ namespace NS_Logger
         allow_write_log = true;
     }
 
-    void WriteLog(const wstring &filePath, const wstring &log)
+    void WriteLog(const wstring &filePath, const wstring &log, bool showMessage)
     {
         if (allow_write_log) {
             std::wofstream file(filePath.c_str(), std::ios::app);
@@ -566,5 +566,7 @@ namespace NS_Logger
             file << log << std::endl;
             file.close();
         }
+        if (showMessage)
+            NS_Utils::ShowMessage(log);
     }
 }
