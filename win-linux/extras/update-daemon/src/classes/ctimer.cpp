@@ -1,15 +1,10 @@
 #include "ctimer.h"
 #include <chrono>
-#include <signal.h>
 
-std::atomic_bool CTimer::m_run{false};
 
 CTimer::CTimer()
 {
-    signal(SIGTERM, &CTimer::handle_signal);
-    signal(SIGABRT, &CTimer::handle_signal);
-    signal(SIGBREAK, &CTimer::handle_signal);
-    signal(SIGINT, &CTimer::handle_signal);
+    m_run = false;
 }
 
 CTimer::~CTimer()
@@ -37,16 +32,4 @@ void CTimer::start(unsigned int timeout, FnVoidVoid callback)
                 callback();
         }
     });
-}
-
-void CTimer::handle_signal(int signal)
-{
-    switch (signal) {
-    case SIGTERM:
-    case SIGABRT:
-    case SIGBREAK:
-    case SIGINT:
-        m_run = false;
-        break;
-    }
 }

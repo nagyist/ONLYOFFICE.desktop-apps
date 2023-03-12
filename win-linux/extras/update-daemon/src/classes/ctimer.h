@@ -3,7 +3,6 @@
 
 #include <future>
 #include <functional>
-#include <atomic>
 
 typedef std::function<void(void)> FnVoidVoid;
 
@@ -20,8 +19,7 @@ public:
     void start(unsigned int timeout, FnVoidVoid callback);
 
 private:
-    static void handle_signal(int signal);
-    static std::atomic_bool m_run;
+    std::atomic_bool m_run;
     std::future<void> m_future;
 };
 
