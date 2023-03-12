@@ -161,8 +161,7 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
     return true;
 }
 
-CUpdateManager::CUpdateManager(CObject *parent):
-    CObject(parent),
+CUpdateManager::CUpdateManager():
     m_downloadMode(Mode::CHECK_UPDATES),
     m_socket(new CSocket(APP_PORT, SVC_PORT)),
     m_pDownloader(new CDownloader)

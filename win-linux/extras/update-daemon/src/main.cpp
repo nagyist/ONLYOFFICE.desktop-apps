@@ -34,6 +34,7 @@
 #include "svccontrol.h"
 #include "classes/capplication.h"
 #include "classes/cupdatemanager.h"
+#include "classes/ctimer.h"
 #include "../../src/defines.h"
 
 
@@ -186,11 +187,10 @@ DWORD WINAPI SvcWorkerThread(LPVOID lpParam)
 {
     CApplication app;
     CUpdateManager upd;
-
-    UINT_PTR timer = 0L;
-    timer = upd.setTimer(2000, [&app, &upd, &timer]() {
+    CTimer timer;
+    timer.start(2000, [&app, &timer]() {
         if (WaitForSingleObject(gSvcStopEvent, 0) == WAIT_OBJECT_0) {
-            upd.closeTimer(timer);
+            timer.stop();
             app.exit(0);
         }
     });

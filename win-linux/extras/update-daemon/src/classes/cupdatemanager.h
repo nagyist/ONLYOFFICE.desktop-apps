@@ -33,7 +33,6 @@
 #ifndef CUPDATEMANAGER_H
 #define CUPDATEMANAGER_H
 
-#include "classes/cobject.h"
 #include "classes/cdownloader.h"
 #include "classes/csocket.h"
 #include <future>
@@ -42,10 +41,10 @@ using std::wstring;
 using std::future;
 
 
-class CUpdateManager: public CObject
+class CUpdateManager
 {
 public:
-    explicit CUpdateManager(CObject *parent = nullptr);
+    explicit CUpdateManager();
     ~CUpdateManager();
 
 private:
