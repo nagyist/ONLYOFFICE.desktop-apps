@@ -1,11 +1,4 @@
 #include "csocket.h"
-#include <stdio.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <signal.h>
 #include <future>
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -33,7 +26,6 @@ public:
     CSocketPrv();
     ~CSocketPrv();
 
-    static void handle_signal(int signal);
     bool createSocket(u_short port);
     bool connectToSocket(u_short port);
     void startReadMessages();
@@ -47,14 +39,15 @@ public:
     FnVoidCharPtr m_error_callback = nullptr;
     std::future<void> m_future;
     int m_sender_port;
-    bool m_socket_created = false;
-    static bool run;
+    std::atomic_bool m_run,
+                     m_socket_created;
 };
 
-bool CSocket::CSocketPrv::run = true;
-
 CSocket::CSocketPrv::CSocketPrv()
-{}
+{
+    m_run = true;
+    m_socket_created = false;
+}
 
 CSocket::CSocketPrv::~CSocketPrv()
 {}
@@ -132,26 +125,9 @@ bool CSocket::CSocketPrv::connectToSocket(u_short port)
     return false;
 }
 
-void CSocket::CSocketPrv::handle_signal(int signal)
-{
-    switch (signal) {
-    case SIGTERM:
-    case SIGABRT:
-    case SIGBREAK:
-    case SIGINT:
-        run = false;
-        break;
-    }
-}
-
 void CSocket::CSocketPrv::startReadMessages()
 {
-    signal(SIGTERM, &CSocketPrv::handle_signal);
-    signal(SIGABRT, &CSocketPrv::handle_signal);
-    signal(SIGBREAK, &CSocketPrv::handle_signal);
-    signal(SIGINT, &CSocketPrv::handle_signal);
-
-    while (run) {
+    while (m_run) {
         char rcvBuf[BUFFSIZE] = {0};
         int ret_data = recv(receiver_fd, rcvBuf, BUFFSIZE, 0); // Receive the string data
         if (ret_data != BUFFSIZE) {
@@ -191,7 +167,7 @@ CSocket::CSocket(int sender_port, int receiver_port) :
     pimpl->m_sender_port = sender_port;
     pimpl->m_socket_created = pimpl->createSocket(receiver_port);
     pimpl->m_future = std::async(std::launch::async, [=]() {
-        while (pimpl->run && !pimpl->m_socket_created) {
+        while (pimpl->m_run && !pimpl->m_socket_created) {
             pimpl->postError("Unable to create socket, retrying after 4 seconds.");
             Sleep(RETRIES_DELAY_MS);
             pimpl->m_socket_created = pimpl->createSocket(receiver_port);
@@ -203,7 +179,7 @@ CSocket::CSocket(int sender_port, int receiver_port) :
 
 CSocket::~CSocket()
 {
-    pimpl->run = false;
+    pimpl->m_run = false;
     pimpl->closeSocket(pimpl->sender_fd);
     pimpl->closeSocket(pimpl->receiver_fd);
     if (pimpl->m_future.valid())

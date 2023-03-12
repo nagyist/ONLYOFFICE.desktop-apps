@@ -1,7 +1,6 @@
 #include "cdownloader.h"
 #include <Windows.h>
 #include <wininet.h>
-#include <signal.h>
 
 
 class CDownloader::DownloadProgress : public IBindStatusCallback
@@ -63,15 +62,11 @@ private:
     CDownloader *m_owner = nullptr;
 };
 
-bool CDownloader::m_run = true;
-bool CDownloader::m_lock = false;
 
 CDownloader::CDownloader()
 {
-    signal(SIGTERM, &CDownloader::handle_signal);
-    signal(SIGABRT, &CDownloader::handle_signal);
-    signal(SIGBREAK, &CDownloader::handle_signal);
-    signal(SIGINT, &CDownloader::handle_signal);
+    m_run = true;
+    m_lock = false;
 }
 
 CDownloader::~CDownloader()
@@ -79,18 +74,6 @@ CDownloader::~CDownloader()
     m_run = false;
     if (m_future.valid())
         m_future.wait();
-}
-
-void CDownloader::handle_signal(int signal)
-{
-    switch (signal) {
-    case SIGTERM:
-    case SIGABRT:
-    case SIGBREAK:
-    case SIGINT:
-        m_run = false;
-        break;
-    }
 }
 
 void CDownloader::downloadFile(const std::wstring &url, const std::wstring &filePath)
@@ -113,7 +96,6 @@ void CDownloader::start()
     m_run = true;
     m_lock = true;
     m_future = std::async(std::launch::async, [=]() {
-        DeleteUrlCacheEntry(m_url.c_str());
         DownloadProgress progress(this);
         progress.prev_percent = -1;
         HRESULT hr = URLDownloadToFile(NULL, m_url.c_str(), m_filePath.c_str(), 0,
@@ -129,13 +111,18 @@ void CDownloader::start()
     });
 }
 
+void CDownloader::pause()
+{
+    m_run = false;
+}
+
 void CDownloader::stop()
 {
     m_run = false;
-//    if (m_future.valid())
-//        m_future.wait();
-//    if (!m_url.empty())
-//        DeleteUrlCacheEntry(m_url.c_str());
+    if (m_future.valid())
+        m_future.wait();
+    if (!m_url.empty())
+        DeleteUrlCacheEntry(m_url.c_str());
 }
 
 wstring CDownloader::GetFilePath()

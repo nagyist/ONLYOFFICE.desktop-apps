@@ -17,6 +17,7 @@ public:
 
     void downloadFile(const wstring &url, const wstring &filePath);
     void start();
+    void pause();
     void stop();
     wstring GetFilePath();
 
@@ -25,14 +26,13 @@ public:
     void onProgress(FnVoidInt callback);
 
 private:
-    static void handle_signal(int signal);
     FnVoidInt m_complete_callback = nullptr,
               m_progress_callback = nullptr;
     wstring   m_url,
               m_filePath;
     std::future<void> m_future;
-    static bool m_run,
-                m_lock;
+    std::atomic_bool m_run,
+                     m_lock;
     class DownloadProgress;
     friend DownloadProgress;
 };
