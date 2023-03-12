@@ -67,6 +67,7 @@ CDownloader::CDownloader()
 {
     m_run = true;
     m_lock = false;
+    m_was_stopped = false;
 }
 
 CDownloader::~CDownloader()
@@ -96,6 +97,10 @@ void CDownloader::start()
     m_run = true;
     m_lock = true;
     m_future = std::async(std::launch::async, [=]() {
+        if (m_was_stopped) {
+            DeleteUrlCacheEntry(m_url.c_str());
+            m_was_stopped = false;
+        }
         DownloadProgress progress(this);
         progress.prev_percent = -1;
         HRESULT hr = URLDownloadToFile(NULL, m_url.c_str(), m_filePath.c_str(), 0,
@@ -119,10 +124,7 @@ void CDownloader::pause()
 void CDownloader::stop()
 {
     m_run = false;
-    if (m_future.valid())
-        m_future.wait();
-    if (!m_url.empty())
-        DeleteUrlCacheEntry(m_url.c_str());
+    m_was_stopped = true;
 }
 
 wstring CDownloader::GetFilePath()

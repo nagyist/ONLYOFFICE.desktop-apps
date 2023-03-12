@@ -32,6 +32,7 @@ private:
               m_filePath;
     std::future<void> m_future;
     std::atomic_bool m_run,
+                     m_was_stopped,
                      m_lock;
     class DownloadProgress;
     friend DownloadProgress;
