@@ -446,8 +446,8 @@ void CUpdateManager::handleAppClose()
         if (!sendMessage(MSG_StartReplacingFiles)) {
             criticalMsg(nullptr, QObject::tr("An error occurred while start replacing files: Update Service not found!"));
         }
-    } //else
-        //sendMessage(MSG_StopDownload);
+    } else
+        sendMessage(MSG_StopDownload);
 }
 
 void CUpdateManager::scheduleRestartForUpdate()
