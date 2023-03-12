@@ -260,7 +260,6 @@ void CUpdateManager::init()
                 break;
 
             case MSG_ShowStartInstallMessage: {
-                m_lock = false;
                 QMetaObject::invokeMethod(m_dialogSchedule,
                                           "addToSchedule",
                                           Qt::QueuedConnection,
@@ -288,6 +287,7 @@ void CUpdateManager::criticalMsg(QWidget *parent, const QString &msg)
     HWND parent_hwnd = (parent) ? (HWND)parent->winId() : NULL;
     wstring lpText = msg.toStdWString();
     MessageBoxW(parent_hwnd, lpText.c_str(), TEXT(APP_TITLE), MB_ICONERROR | MB_SERVICE_NOTIFICATION_NT3X | MB_SETFOREGROUND);
+    m_lock = false;
 }
 
 void CUpdateManager::clearTempFiles(const QString &except)
@@ -303,6 +303,10 @@ void CUpdateManager::clearTempFiles(const QString &except)
 
 void CUpdateManager::checkUpdates()
 {
+    if (m_lock)
+        return;
+    m_lock = true;
+
     destroyStartupTimer(m_pCheckOnStartupTimer);
     m_packageData->clear();
 
@@ -354,7 +358,6 @@ void CUpdateManager::onProgressSlot(const int percent)
 
 void CUpdateManager::onError(const QString &error)
 {
-    m_lock = false;
     m_dialogSchedule->addToSchedule("criticalMsg", error);
 }
 
@@ -378,13 +381,15 @@ bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &
 
 void CUpdateManager::loadUpdates()
 {
-    if (m_lock)
-        return;
+//    if (m_lock)
+//        return;
+
     if (m_savedPackageData->fileName.indexOf(currentArch()) != -1
             && m_savedPackageData->version == m_packageData->version
             && getFileHash(m_savedPackageData->fileName) == m_packageData->hash)
     {
         m_packageData->fileName = m_savedPackageData->fileName;
+        AscAppManager::sendCommandTo(0, "updates:download", QString("{\"progress\":\"100\"}"));
         unzipIfNeeded();
 
     } else
@@ -431,7 +436,6 @@ void CUpdateManager::unzipIfNeeded()
     m_lock = true;
 
     if (!sendMessage(MSG_UnzipIfNeeded, m_packageData->fileName.toStdWString(), m_packageData->version.toStdWString())) {
-        m_lock = false;
         m_dialogSchedule->addToSchedule("criticalMsg", QObject::tr("An error occurred while unzip updates: Update Service not found!"));
     }
 }
@@ -490,8 +494,8 @@ int CUpdateManager::getUpdateMode()
 
 void CUpdateManager::onLoadCheckFinished(const QString &filePath)
 {
-    if (m_lock)
-        return;
+//    if (m_lock)
+//        return;
     QFile jsonFile(filePath);
     if ( jsonFile.open(QIODevice::ReadOnly) ) {
         QByteArray ReplyText = jsonFile.readAll();
@@ -564,6 +568,7 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
         AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(version));
         switch (getUpdateMode()) {
         case UpdateMode::SILENT:
+            m_lock = false;
             loadUpdates();
             break;
         case UpdateMode::ASK:
@@ -573,6 +578,7 @@ void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString
     } else
     if (!error && !updateExist) {
         AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
+        m_lock = false;
     } else
     if (error) {
         m_dialogSchedule->addToSchedule("criticalMsg", changelog);
@@ -587,7 +593,7 @@ void CUpdateManager::showUpdateMessage(QWidget *parent) {
                                                                     getVersion(),
                                                                     QString(VER_FILEVERSION_STR)),
                         WinDlg::DlgBtns::mbSkipRemindDownload);
-
+    m_lock = false;
     switch (result) {
     case WinDlg::DLG_RESULT_DOWNLOAD:
         loadUpdates();
@@ -612,6 +618,7 @@ void CUpdateManager::showStartInstallMessage(QWidget *parent)
                                                                                 getVersion(),
                                                                                 QString(VER_FILEVERSION_STR)),
                                     WinDlg::DlgBtns::mbSkipRemindSaveandinstall);
+    m_lock = false;
     switch (result) {
     case WinDlg::DLG_RESULT_INSTALL: {
         scheduleRestartForUpdate();
