@@ -181,7 +181,7 @@ void CUpdateManager::init()
 
     m_socket->onError([](const char* error) {
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, converter.from_bytes(error));
+        NS_Logger::WriteLog(converter.from_bytes(error));
     });
 }
 
@@ -226,13 +226,13 @@ void CUpdateManager::unzipIfNeeded(const wstring &filePath, const wstring &newVe
         if (!unzipArchive(filePath, updPath, NS_File::appPath(), newVersion , error)) {
             m_lock = false;
             if (!sendMessage(MSG_OtherError, error)) {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+                NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
             }
             return;
         }
         m_lock = false;
         if (!sendMessage(MSG_ShowStartInstallMessage)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+            NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
         }
     };
 
@@ -242,11 +242,11 @@ void CUpdateManager::unzipIfNeeded(const wstring &filePath, const wstring &newVe
         if (isSuccessUnpacked(updPath + SUCCES_UNPACKED, newVersion)) {
             m_lock = false;
             if (!sendMessage(MSG_ShowStartInstallMessage)) {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+                NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
             }
         } else {
             if (!NS_File::removeDirRecursively(updPath)) {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+                NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
             }
             m_future_unzip = std::async(std::launch::async, unzip);
         }
@@ -259,7 +259,7 @@ void CUpdateManager::clearTempFiles(const wstring &prefix, const wstring &except
         list<wstring> filesList;
         wstring _error;
         if (!NS_File::GetFilesList(NS_File::tempPath(), &filesList, _error)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, DEFAULT_ERROR_MESSAGE);
+            NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
             return;
         }
         for (auto &filePath : filesList) {
@@ -279,25 +279,25 @@ void CUpdateManager::startReplacingFiles()
     wstring updPath = NS_File::tempPath() + UPDATE_PATH;
     wstring tmpPath = NS_File::tempPath() + BACKUP_PATH;
     if (!NS_File::dirExists(updPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't find folder: " + updPath, true);
+        NS_Logger::WriteLog(L"Update cancelled. Can't find folder: " + updPath, true);
         return;
     }
 
 #ifndef DONT_VERIFY_SIGNATURE
     // Verify the signature of executable files
     if (!NS_File::verifyEmbeddedSignature(updPath + APP_LAUNCH_NAME)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME, true);
+        NS_Logger::WriteLog(L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME, true);
         return;
     }
     if (!NS_File::verifyEmbeddedSignature(updPath + APP_LAUNCH_NAME2)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME2, true);
+        NS_Logger::WriteLog(L"Update cancelled. The file signature is missing: " + updPath + APP_LAUNCH_NAME2, true);
         return;
     }
 #endif
 
     // Check backup folder
     if (NS_File::dirExists(tmpPath) && !NS_File::removeDirRecursively(tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't delete folder: " + tmpPath, true);
+        NS_Logger::WriteLog(L"Update cancelled. Can't delete folder: " + tmpPath, true);
         return;
     }
 
@@ -310,30 +310,30 @@ void CUpdateManager::startReplacingFiles()
             Sleep(500);
 
         if (NS_File::isProcessRunning(app)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The main application is not closed!", true);
+            NS_Logger::WriteLog(L"Update cancelled. The main application is not closed!", true);
             return;
         }
     }
 
     // Replace app path to Backup
     if (!NS_File::replaceFile(appPath, tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't replace files to backup: " + NS_Utils::GetLastErrorAsString(), true);
+        NS_Logger::WriteLog(L"Update cancelled. Can't replace files to backup: " + NS_Utils::GetLastErrorAsString(), true);
         if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
                 && !NS_File::replaceFolderContents(tmpPath, appPath))
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't restore files from backup!", true);
+            NS_Logger::WriteLog(L"Can't restore files from backup!", true);
         return;
     }
 
     // Move update path to app path
     if (!NS_File::replaceFile(updPath, appPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't move updates to App path: " + NS_Utils::GetLastErrorAsString(), true);
+        NS_Logger::WriteLog(L"Update cancelled. Can't move updates to App path: " + NS_Utils::GetLastErrorAsString(), true);
 
         if (NS_File::dirExists(appPath) && !NS_File::removeDirRecursively(appPath)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while remove App path: " + NS_Utils::GetLastErrorAsString(), true);
+            NS_Logger::WriteLog(L"An error occurred while remove App path: " + NS_Utils::GetLastErrorAsString(), true);
             return;
         }
         if (!NS_File::replaceFile(tmpPath, appPath))
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore files from backup: " + NS_Utils::GetLastErrorAsString(), true);
+            NS_Logger::WriteLog(L"An error occurred while restore files from backup: " + NS_Utils::GetLastErrorAsString(), true);
 
         NS_File::removeDirRecursively(updPath);
         return;
@@ -380,7 +380,7 @@ void CUpdateManager::startReplacingFiles()
 
     // Restart program
     if (!NS_File::runProcess(appPath + APP_LAUNCH_NAME, L""))
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restarting the program!", true);
+        NS_Logger::WriteLog(L"An error occurred while restarting the program!", true);
 }
 
 bool CUpdateManager::sendMessage(int cmd, const wstring &param1, const wstring &param2, const wstring &param3)

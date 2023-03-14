@@ -8,7 +8,7 @@ BOOL GetServiceHandle(SC_HANDLE &schSCManager, SC_HANDLE &schService, DWORD dwDe
     // Get a handle to the SCM database.
     schSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!schSCManager) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+        NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
         return FALSE;
     }
 
@@ -16,7 +16,7 @@ BOOL GetServiceHandle(SC_HANDLE &schSCManager, SC_HANDLE &schService, DWORD dwDe
     schService = OpenService(schSCManager, SERVICE_NAME, dwDesiredAccess);
     if (!schService) {
         CloseServiceHandle(schSCManager);
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+        NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
         return FALSE;
     }
     return TRUE;
@@ -106,7 +106,7 @@ namespace SvcControl
     {
         TCHAR szUnquotedPath[MAX_PATH];
         if (!GetModuleFileName(NULL, szUnquotedPath, MAX_PATH)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             return;
         }
 
@@ -120,7 +120,7 @@ namespace SvcControl
         // Get a handle to the SCM database.
         SC_HANDLE schSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
         if (schSCManager == NULL) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             return;
         }
 
@@ -141,7 +141,7 @@ namespace SvcControl
 
         if (schService == NULL) {
             CloseServiceHandle(schSCManager);
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             return;
         }
         CloseServiceHandle(schService);
@@ -160,7 +160,7 @@ namespace SvcControl
         if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssStatus,
                                     sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto cleanup;
         }
 
@@ -168,7 +168,7 @@ namespace SvcControl
         // to stop the service here, but for simplicity this example just returns.
         if (ssStatus.dwCurrentState != SERVICE_STOPPED && ssStatus.dwCurrentState != SERVICE_STOP_PENDING)
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Cannot start the service because it is already running");
+            NS_Logger::WriteLog(L"Cannot start the service because it is already running");
             goto cleanup;
         }
 
@@ -199,7 +199,7 @@ namespace SvcControl
             if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssStatus,
                                         sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
             {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto cleanup;
             }
 
@@ -218,7 +218,7 @@ namespace SvcControl
         // Attempt to start the service.
         if (!StartService(schService, 0, NULL))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto cleanup;
         } else
             printf("Service start pending...\n");
@@ -227,7 +227,7 @@ namespace SvcControl
         if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssStatus,
                                     sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto cleanup;
         }
 
@@ -254,7 +254,7 @@ namespace SvcControl
             if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssStatus,
                                         sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
             {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 break;
             }
 
@@ -272,9 +272,9 @@ namespace SvcControl
 
         // Determine whether the service is running.
         if (ssStatus.dwCurrentState == SERVICE_RUNNING) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Service started successfully.");
+            NS_Logger::WriteLog(L"Service started successfully.");
         } else {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, wstring(L"Service not started.") +
+            NS_Logger::WriteLog(wstring(L"Service not started.") +
                         L"\nCurrent State: " + to_wstring(ssStatus.dwCurrentState) +
                         L"\nExit Code: " + to_wstring(ssStatus.dwWin32ExitCode) +
                         L"\nCheck Point: " + to_wstring(ssStatus.dwCheckPoint) +
@@ -312,19 +312,19 @@ namespace SvcControl
                 psd = (PSECURITY_DESCRIPTOR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwSize);
                 if (psd == NULL) {
                     // Note: HeapAlloc does not support GetLastError.
-                    NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                    NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                     goto dacl_cleanup;
                 }
 
                 if (!QueryServiceObjectSecurity(schService, DACL_SECURITY_INFORMATION, psd,
                                                     dwSize, &dwBytesNeeded))
                 {
-                    NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                    NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                     goto dacl_cleanup;
                 }
 
             } else {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto dacl_cleanup;
             }
         }
@@ -332,7 +332,7 @@ namespace SvcControl
         // Get the DACL.
         if (!GetSecurityDescriptorDacl(psd, &bDaclPresent, &pacl, &bDaclDefaulted))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto dacl_cleanup;
         }
 
@@ -342,7 +342,7 @@ namespace SvcControl
                                         SET_ACCESS, NO_INHERITANCE);
 
         if (SetEntriesInAcl(1, &ea, pacl, &pNewAcl) != ERROR_SUCCESS) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto dacl_cleanup;
         }
 
@@ -350,20 +350,20 @@ namespace SvcControl
         SECURITY_DESCRIPTOR sd;
         if (!InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto dacl_cleanup;
         }
 
         // Set the new DACL in the security descriptor.
         if (!SetSecurityDescriptorDacl(&sd, TRUE, pNewAcl, FALSE)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto dacl_cleanup;
         }
 
         // Set the new DACL for the service object.
         if (!SetServiceObjectSecurity(schService, DACL_SECURITY_INFORMATION, &sd))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto dacl_cleanup;
         } else
             printf("Service DACL updated successfully\n");
@@ -393,12 +393,12 @@ namespace SvcControl
         if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
                                     sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto stop_cleanup;
         }
 
         if (ssp.dwCurrentState == SERVICE_STOPPED) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto stop_cleanup;
         }
 
@@ -424,7 +424,7 @@ namespace SvcControl
             if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
                                         sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
             {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto stop_cleanup;
             }
 
@@ -445,7 +445,7 @@ namespace SvcControl
         // Send a stop code to the service.
         if (!ControlService(schService, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&ssp))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto stop_cleanup;
         }
 
@@ -456,7 +456,7 @@ namespace SvcControl
             if (!QueryServiceStatusEx(schService, SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
                                         sizeof(SERVICE_STATUS_PROCESS), &dwBytesNeeded))
             {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto stop_cleanup;
             }
 
@@ -491,14 +491,14 @@ namespace SvcControl
                 cbBufSize = dwBytesNeeded;
                 lpsc = (LPQUERY_SERVICE_CONFIG)LocalAlloc(LMEM_FIXED, cbBufSize);
             } else {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto cleanup;
             }
         }
 
         if (!QueryServiceConfig(schService, lpsc, cbBufSize, &dwBytesNeeded))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto cleanup;
         }
 
@@ -508,14 +508,14 @@ namespace SvcControl
                 cbBufSize = dwBytesNeeded;
                 lpsd = (LPSERVICE_DESCRIPTION)LocalAlloc(LMEM_FIXED, cbBufSize);
             } else {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+                NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
                 goto cleanup;
             }
         }
 
         if (!QueryServiceConfig2(schService, SERVICE_CONFIG_DESCRIPTION, (LPBYTE)lpsd, cbBufSize, &dwBytesNeeded))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
             goto cleanup;
         }
 
@@ -564,7 +564,7 @@ namespace SvcControl
             NULL,              // password: no change
             NULL) )            // display name: no change
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
         }
 
         CloseServiceHandle(schService);
@@ -591,7 +591,7 @@ namespace SvcControl
                 NULL,                  // password: no change
                 NULL) )                // display name: no change
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
         }
 
         CloseServiceHandle(schService);
@@ -610,7 +610,7 @@ namespace SvcControl
 
         if (!ChangeServiceConfig2(schService, SERVICE_CONFIG_DESCRIPTION, &sd))
         {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
         }
 
         CloseServiceHandle(schService);
@@ -625,7 +625,7 @@ namespace SvcControl
 
         // Delete the service.
         if (!DeleteService(schService))
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, ADVANCED_ERROR_MESSAGE);
+            NS_Logger::WriteLog(ADVANCED_ERROR_MESSAGE);
 
         CloseServiceHandle(schService);
         CloseServiceHandle(schSCManager);

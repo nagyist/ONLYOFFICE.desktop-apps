@@ -131,23 +131,23 @@ namespace NS_File
             if (useTmp) {
                 // Create a backup
                 if (!dirExists(parentPath(temp)) && !makePath(parentPath(temp))) {
-                    NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't create path: " + parentPath(temp));
+                    NS_Logger::WriteLog(L"Can't create path: " + parentPath(temp));
                     return false;
                 }
                 if (!replaceFile(dest, temp)) {
-                    NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't move file from " + dest + L" to " + temp + L". " + NS_Utils::GetLastErrorAsString());
+                    NS_Logger::WriteLog(L"Can't move file from " + dest + L" to " + temp + L". " + NS_Utils::GetLastErrorAsString());
                     return false;
                 }
             }
         } else {
             if (!dirExists(parentPath(dest)) && !makePath(parentPath(dest))) {
-                NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't create path: " + parentPath(dest));
+                NS_Logger::WriteLog(L"Can't create path: " + parentPath(dest));
                 return false;
             }
         }
 
         if (!replaceFile(source, dest)) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't move file from " + source + L" to " + dest + L". " + NS_Utils::GetLastErrorAsString());
+            NS_Logger::WriteLog(L"Can't move file from " + source + L" to " + dest + L". " + NS_Utils::GetLastErrorAsString());
             return false;
         }
         return true;
@@ -157,7 +157,7 @@ namespace NS_File
     {
         std::wifstream file(filePath.c_str(), std::ios_base::in);
         if (!file.is_open()) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while opening: " + filePath);
+            NS_Logger::WriteLog(L"An error occurred while opening: " + filePath);
             return false;
         }
         wstring line;
@@ -172,7 +172,7 @@ namespace NS_File
     {
         std::wofstream file(filePath.c_str(), std::ios_base::out);
         if (!file.is_open()) {
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while writing: " + filePath);
+            NS_Logger::WriteLog(L"An error occurred while writing: " + filePath);
             return false;
         }
         for (auto &line : linesList)
@@ -585,10 +585,11 @@ namespace NS_Logger
         allow_write_log = true;
     }
 
-    void WriteLog(const wstring &filePath, const wstring &log, bool showMessage)
+    void WriteLog(const wstring &log, bool showMessage)
     {
         if (allow_write_log) {
-            std::wofstream file(filePath.c_str(), std::ios::app);
+            wstring filpPath(NS_File::appPath() + L"/service_log.txt");
+            std::wofstream file(filpPath.c_str(), std::ios::app);
             if (!file.is_open()) {
                 return;
             }

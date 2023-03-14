@@ -41,7 +41,6 @@ using std::wstring;
 using std::to_wstring;
 using std::list;
 
-#define DEFAULT_LOG_FILE NS_File::tempPath() + L"/svclog.txt"
 #define DEFAULT_ERROR_MESSAGE L"An error occurred: " + \
     wstring(TEXT(__FUNCTION__)) + L" Line: " + to_wstring(__LINE__)
 #define ADVANCED_ERROR_MESSAGE DEFAULT_ERROR_MESSAGE + \
@@ -83,7 +82,7 @@ bool verifyEmbeddedSignature(const wstring &fileName);
 namespace NS_Logger
 {
 void AllowWriteLog();
-void WriteLog(const wstring &filePath, const wstring &log, bool showMessage = false);
+void WriteLog(const wstring &log, bool showMessage = false);
 }
 
 #endif // UTILS_H
