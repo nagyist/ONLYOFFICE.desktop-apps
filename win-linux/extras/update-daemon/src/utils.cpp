@@ -46,6 +46,7 @@
 #include <Wincrypt.h>
 #include <WtsApi32.h>
 #include <Softpub.h>
+#include <TlHelp32.h>
 #include <vector>
 #include <sstream>
 
@@ -252,6 +253,30 @@ namespace NS_File
         return false;
     }
 
+    bool isProcessRunning(const wstring &fileName)
+    {
+        HANDLE snapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapShot == INVALID_HANDLE_VALUE)
+            return false;
+
+        PROCESSENTRY32 entry;
+        entry.dwSize = sizeof(PROCESSENTRY32);
+        if (!Process32First(snapShot, &entry)) {
+            CloseHandle(snapShot);
+            return false;
+        }
+
+        do {
+            if (lstrcmpi(entry.szExeFile, fileName.c_str()) == 0) {
+                CloseHandle(snapShot);
+                return true;
+            }
+        } while (Process32Next(snapShot, &entry));
+
+        CloseHandle(snapShot);
+        return false;
+    }
+
     bool fileExists(const wstring &filePath)
     {
         DWORD attr = ::GetFileAttributes(filePath.c_str());
@@ -308,7 +333,11 @@ namespace NS_File
             0,
             NULL
         };
-        return (SHFileOperation(&fop) == 0) ? true : false;
+        if (SHFileOperation(&fop) != 0)
+            return false;
+        if (!dirExists(dir))
+            return true;
+        return (RemoveDirectory(pFrom) != 0) ? true : false;
     }
 
     wstring fromNativeSeparators(const wstring &path)

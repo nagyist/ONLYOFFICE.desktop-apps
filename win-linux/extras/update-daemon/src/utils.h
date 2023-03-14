@@ -62,6 +62,7 @@ bool replaceListOfFiles(const list<wstring> &filesList, const wstring &from,
                             const wstring &to, const wstring &tmp = L"");
 bool replaceFolderContents(const wstring &from, const wstring &to, const wstring &tmp = L"");
 bool runProcess(const wstring &fileName, const wstring &args);
+bool isProcessRunning(const wstring &fileName);
 bool fileExists(const wstring &filePath);
 bool dirExists(const wstring &dirName);
 bool dirIsEmpty(const wstring &dirName);

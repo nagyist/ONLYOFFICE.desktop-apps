@@ -48,9 +48,6 @@
 #define APP_LAUNCH_NAME  L"/DesktopEditors.exe"
 #define APP_LAUNCH_NAME2 L"/editors.exe"
 #define DAEMON_NAME      L"/update-daemon.exe"
-#define TEMP_DAEMON_NAME L"/~update-daemon.exe"
-#define DELETE_LIST      L"/.delete_list.lst"
-#define REPLACEMENT_LIST L"/.replacement_list.lst"
 #define SUCCES_UNPACKED  L"/.success_unpacked"
 
 using std::vector;
@@ -101,56 +98,6 @@ auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
         error = L"An error occurred while unpacking zip file!";
         return false;
     }
-
-    auto fillSubpathVector = [&error](const wstring &path, vector<wstring> &vec)->bool {
-        list<wstring> filesList;
-        wstring _error;
-        if (!NS_File::GetFilesList(path, &filesList, _error)) {
-            error = L"An error occurred while get files list: " + _error;
-            return false;
-        }
-        for (auto &filePath : filesList) {
-            wstring subPath = filePath.substr(path.length());
-            vec.push_back(std::move(subPath));
-        }
-        return true;
-    };
-
-    vector<wstring> updVec, appVec;
-    if (!fillSubpathVector(appPath, appVec) || !fillSubpathVector(updPath, updVec))
-        return false;
-
-#ifdef ALLOW_DELETE_UNUSED_FILES
-    // Create a list of files to delete
-    {
-        list<wstring> delList;
-        for (auto &appFile : appVec) {
-            auto it_appFile = std::find(updVec.begin(), updVec.end(), appFile);
-            if (it_appFile == updVec.end() && appFile != DAEMON_NAME
-                    && appFile != L"/unins000.dat" && appFile != L"/unins000.exe")
-                delList.push_back(appFile);
-        }
-        if (!NS_File::writeToFile(updPath + DELETE_LIST, delList))
-            return false;
-    }
-#endif
-
-    // Create a list of files to replacement
-    {
-        list<wstring> replList;
-        for (auto &updFile : updVec) {
-            auto it_appFile = std::find(appVec.begin(), appVec.end(), updFile);
-            if (it_appFile != appVec.end()) {
-                auto updFileHash = NS_File::getFileHash(updPath + updFile);
-                if (updFileHash.empty() || updFileHash != NS_File::getFileHash(appPath + *it_appFile))
-                    replList.push_back(updFile);
-
-            } else
-                replList.push_back(updFile);
-        }
-        if (!NS_File::writeToFile(updPath + REPLACEMENT_LIST, replList))
-            return false;
-    }   
 
     // Сreate a file about successful unpacking for use in subsequent launches
     {
@@ -326,25 +273,9 @@ void CUpdateManager::clearTempFiles(const wstring &prefix, const wstring &except
     });
 }
 
-void CUpdateManager::restoreFromBackup(const wstring &appPath, const wstring &updPath, const wstring &tmpPath)
-{
-    // Restore from backup
-    if (!NS_File::replaceFolderContents(tmpPath, appPath))
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore files from backup!");
-    else
-        NS_File::removeDirRecursively(tmpPath);
-
-    // Restore executable name
-    if (!NS_File::replaceFile(appPath + TEMP_DAEMON_NAME, appPath + DAEMON_NAME))
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name!");
-
-    NS_File::removeDirRecursively(updPath);
-}
-
 void CUpdateManager::startReplacingFiles()
 {
     wstring appPath = NS_File::appPath();
-    wstring appFilePath = NS_File::appPath() + DAEMON_NAME;
     wstring updPath = NS_File::tempPath() + UPDATE_PATH;
     wstring tmpPath = NS_File::tempPath() + BACKUP_PATH;
     if (!NS_File::dirExists(updPath)) {
@@ -365,74 +296,87 @@ void CUpdateManager::startReplacingFiles()
 #endif
 
     // Check backup folder
-    if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
-            && !NS_File::removeDirRecursively(tmpPath)) {
+    if (NS_File::dirExists(tmpPath) && !NS_File::removeDirRecursively(tmpPath)) {
         NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't delete folder: " + tmpPath, true);
         return;
     }
-    if (!NS_File::dirExists(tmpPath) && !NS_File::makePath(tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't create folder: " + tmpPath, true);
+
+    // Wait until the main app closes
+    {
+        int retries = 10;
+        wstring app(APP_LAUNCH_NAME2);
+        app = app.substr(1);
+        while (NS_File::isProcessRunning(app) && retries-- > 0)
+            Sleep(500);
+
+        if (NS_File::isProcessRunning(app)) {
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. The main application is not closed!", true);
+            return;
+        }
+    }
+
+    // Replace app path to Backup
+    if (!NS_File::replaceFile(appPath, tmpPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't replace files to backup: " + NS_Utils::GetLastErrorAsString(), true);
+        if (NS_File::dirExists(tmpPath) && !NS_File::dirIsEmpty(tmpPath)
+                && !NS_File::replaceFolderContents(tmpPath, appPath))
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Can't restore files from backup!", true);
         return;
     }
 
-    // Remove old update-daemon
-    if (NS_File::fileExists(appPath + TEMP_DAEMON_NAME)
-            && !NS_File::removeFile(appPath + TEMP_DAEMON_NAME)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't remove temp file: " + appPath + TEMP_DAEMON_NAME, true);
+    // Move update path to app path
+    if (!NS_File::replaceFile(updPath, appPath)) {
+        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't move updates to App path: " + NS_Utils::GetLastErrorAsString(), true);
+
+        if (NS_File::dirExists(appPath) && !NS_File::removeDirRecursively(appPath)) {
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while remove App path: " + NS_Utils::GetLastErrorAsString(), true);
+            return;
+        }
+        if (!NS_File::replaceFile(tmpPath, appPath))
+            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore files from backup: " + NS_Utils::GetLastErrorAsString(), true);
+
+        NS_File::removeDirRecursively(updPath);
         return;
     }
 
-    // Read LST files
-    list<wstring> repList;
-    if (!NS_File::readFile(updPath + REPLACEMENT_LIST, repList)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't read file: " + updPath + REPLACEMENT_LIST, true);
-        return;
-    }
-
-#ifdef ALLOW_DELETE_UNUSED_FILES
-    list<wstring> delList;
-    if (!NS_File::readFile(updPath + DELETE_LIST, delList)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't read file: " + updPath + DELETE_LIST, true);
-        return;
-    }
+#if 0
+    if (NS_File::fileExists(tmpPath + L"/unins000.dat"))
+        NS_File::replaceFile(tmpPath + L"/unins000.dat", appPath + L"/unins000.dat");
+    if (NS_File::fileExists(tmpPath + L"/unins000.exe"))
+        NS_File::replaceFile(tmpPath + L"/unins000.exe", appPath + L"/unins000.exe");
+    if (NS_File::fileExists(tmpPath + DAEMON_NAME))
+        NS_File::replaceFile(tmpPath + DAEMON_NAME, appPath + DAEMON_NAME);
 #endif
 
-    // Rename current executable
-    wstring appFileRenamedPath = appPath + TEMP_DAEMON_NAME;
-    if (!NS_File::replaceFile(appFilePath, appFileRenamedPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"Update cancelled. Can't rename file: " + appFilePath, true);
-        return;
+    // Update version in registry
+    {
+        wstring ver;
+        list<wstring> lines;
+        if (NS_File::readFile(appPath + SUCCES_UNPACKED, lines)) {
+            if (lines.size() > 0)
+                ver = lines.front();
+            NS_File::removeFile(appPath + SUCCES_UNPACKED);
+        }
+        if (!ver.empty()) {
+            HKEY hKey, hAppKey;
+            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"), 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
+                wstring app_name(TEXT(WINDOW_NAME));
+                wstring app_key = app_name + L"_is1";
+                if (RegOpenKeyEx(hKey, app_key.c_str(), 0, KEY_ALL_ACCESS, &hAppKey) == ERROR_SUCCESS) {
+                    wstring disp_name = app_name + L" " + ver + L" (" + currentArch().substr(1) + L")";
+                    if (RegSetValueEx(hAppKey, TEXT("DisplayName"), 0, REG_SZ, (const BYTE*)disp_name.c_str(), (DWORD)(disp_name.length() + 1) * sizeof(WCHAR)) != ERROR_SUCCESS)
+                        NS_Logger::WriteLog(L"Can't update DisplayName in registry!");
+                    if (RegSetValueEx(hAppKey, TEXT("DisplayVersion"), 0, REG_SZ, (const BYTE*)ver.c_str(), (DWORD)(ver.length() + 1) * sizeof(WCHAR)) != ERROR_SUCCESS)
+                        NS_Logger::WriteLog(L"Can't update DisplayVersion in registry!");
+                    RegCloseKey(hAppKey);
+                }
+                RegCloseKey(hKey);
+            }
+        }
     }
 
-#ifdef ALLOW_DELETE_UNUSED_FILES
-    // Replace unused files to Backup
-    if (!NS_File::replaceListOfFiles(delList, appPath, tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while replace unused files! Restoring from the backup will start.", true);
-        restoreFromBackup(appPath, updPath, tmpPath);
-        return;
-    }
-#endif
-
-    // Move update files to app path
-    if (!NS_File::replaceListOfFiles(repList, updPath, appPath, tmpPath)) {
-        NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while copy files! Restoring from the backup will start.", true);
-
-        // Remove new update-daemon.exe if exist
-        if (NS_File::fileExists(appFilePath))
-            NS_File::removeFile(appFilePath);
-
-        restoreFromBackup(appPath, updPath, tmpPath);
-        return;
-    }
-
-    // Remove Update and Temp dirs
-    NS_File::removeDirRecursively(updPath);
+    // Remove Backup dir
     NS_File::removeDirRecursively(tmpPath);
-
-    // Restore executable name if there was no new version
-    if (std::find(repList.begin(), repList.end(), DAEMON_NAME) == repList.end())
-        if (!NS_File::replaceFile(appFileRenamedPath, appFilePath))
-            NS_Logger::WriteLog(DEFAULT_LOG_FILE, L"An error occurred while restore daemon file name: " + appFileRenamedPath, true);
 
     // Restart program
     if (!NS_File::runProcess(appPath + APP_LAUNCH_NAME, L""))
