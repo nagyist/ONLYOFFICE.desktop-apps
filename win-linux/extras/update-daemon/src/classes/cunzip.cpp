@@ -48,7 +48,7 @@ int extractRecursively(CComPtr<IShellDispatch> &pISD, const CComPtr<Folder> &pSr
         if (FAILED(hr))
             return UNZIP_ERROR;
 
-        if (isFolder) {
+        if (isFolder == VARIANT_TRUE) {
             // Source path
             CComPtr<Folder> pSubFolder;
             hr = pISD->NameSpace(vSrcPath, &pSubFolder);
@@ -64,7 +64,7 @@ int extractRecursively(CComPtr<IShellDispatch> &pISD, const CComPtr<Folder> &pSr
             wstring targetFolder(destFolder);
             targetFolder += L"\\";
             targetFolder += bstrName;
-            if (!CreateDirectory(targetFolder.c_str(), NULL))
+            if (CreateDirectory(targetFolder.c_str(), NULL) == 0)
                 return UNZIP_ERROR;
 
             int res = extractRecursively(pISD, pSubFolder, targetFolder, vOptions, run);
