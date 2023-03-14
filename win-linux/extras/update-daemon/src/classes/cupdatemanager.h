@@ -34,6 +34,7 @@
 #define CUPDATEMANAGER_H
 
 #include "classes/cdownloader.h"
+#include "classes/cunzip.h"
 #include "classes/csocket.h"
 #include <future>
 
@@ -49,6 +50,7 @@ public:
 
 private:
     void init();
+    void onCompleteUnzip(const int error);
     void onCompleteSlot(const int error, const wstring &filePath);
     void onProgressSlot(const int percent);
     void unzipIfNeeded(const wstring &filePath, const wstring &newVersion);
@@ -57,12 +59,13 @@ private:
     bool sendMessage(int cmd, const wstring &param1 = L"null", const wstring &param2 = L"null",
                         const wstring &param3 = L"null");
 
+    wstring      m_newVersion;
     bool         m_lock = false;
     int          m_downloadMode;
-    future<void> m_future_unzip,
-                 m_future_clear;
+    future<void> m_future_clear;
     CSocket     *m_socket = nullptr;
     CDownloader *m_pDownloader = nullptr;
+    CUnzip      *m_pUnzip = nullptr;
 
     enum Mode {
         CHECK_UPDATES=0, DOWNLOAD_CHANGELOG=1, DOWNLOAD_UPDATES=2

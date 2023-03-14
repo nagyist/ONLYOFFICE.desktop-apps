@@ -85,33 +85,11 @@ auto isSuccessUnpacked(const wstring &successFilePath, const wstring &version)->
     return false;
 }
 
-auto unzipArchive(const wstring &zipFilePath, const wstring &updPath,
-                  const wstring &appPath, const wstring &version, wstring &error)->bool
-{
-    if (!NS_File::dirExists(updPath) && !NS_File::makePath(updPath)) {
-        error = L"An error occurred while creating dir: " + updPath;
-        return false;
-    }
-
-    // Extract files
-    if (!NS_File::unzipArchive(zipFilePath, updPath)) {
-        error = L"An error occurred while unpacking zip file!";
-        return false;
-    }
-
-    // Сreate a file about successful unpacking for use in subsequent launches
-    {
-        list<wstring> successList{version};
-        if (!NS_File::writeToFile(updPath + SUCCES_UNPACKED, successList))
-            return false;
-    }
-    return true;
-}
-
 CUpdateManager::CUpdateManager():
     m_downloadMode(Mode::CHECK_UPDATES),
     m_socket(new CSocket(APP_PORT, SVC_PORT)),
-    m_pDownloader(new CDownloader)
+    m_pDownloader(new CDownloader),
+    m_pUnzip(new CUnzip)
 {
     init();
 }
@@ -120,8 +98,7 @@ CUpdateManager::~CUpdateManager()
 {
     if (m_future_clear.valid())
         m_future_clear.wait();
-    if (m_future_unzip.valid())
-        m_future_unzip.wait();
+    delete m_pUnzip, m_pUnzip = nullptr;
     delete m_pDownloader, m_pDownloader = nullptr;
     delete m_socket, m_socket = nullptr;
 }
@@ -133,6 +110,9 @@ void CUpdateManager::init()
     });
     m_pDownloader->onProgress([=](int percent) {
         onProgressSlot(percent);
+    });
+    m_pUnzip->onComplete([=](int error) {
+        onCompleteUnzip(error);
     });
     m_socket->onMessageReceived([=](void *data, size_t size) {
         wstring str((const wchar_t*)data), tmp;
@@ -185,6 +165,32 @@ void CUpdateManager::init()
     });
 }
 
+void CUpdateManager::onCompleteUnzip(const int error)
+{
+    if (error == UNZIP_OK) {
+        // Сreate a file about successful unpacking for use in subsequent launches
+        const wstring updPath = NS_File::tempPath() + UPDATE_PATH;
+        list<wstring> successList{m_newVersion};
+        if (!NS_File::writeToFile(updPath + SUCCES_UNPACKED, successList)) {
+            m_lock = false;
+            return;
+        }
+        if (!sendMessage(MSG_ShowStartInstallMessage))
+            NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
+
+    } else
+    if (error == UNZIP_ERROR) {
+        wstring error(L"An error occured while unpacking the archive");
+        if (!sendMessage(MSG_OtherError, error))
+            NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
+
+    } else
+    if (error == UNZIP_ABORT) {
+        // Stop unzip
+    }
+    m_lock = false;
+}
+
 void CUpdateManager::onCompleteSlot(const int error, const wstring &filePath)
 {
     if (error == 0) {
@@ -220,35 +226,30 @@ void CUpdateManager::unzipIfNeeded(const wstring &filePath, const wstring &newVe
     if (m_lock)
         return;
     m_lock = true;
+
+    m_newVersion = newVersion;
     const wstring updPath = NS_File::tempPath() + UPDATE_PATH;
     auto unzip = [=]()->void {
-        wstring error(L"unzipArchive() error");
-        if (!unzipArchive(filePath, updPath, NS_File::appPath(), newVersion , error)) {
+        if (!NS_File::dirExists(updPath) && !NS_File::makePath(updPath)) {
+            NS_Logger::WriteLog(L"An error occurred while creating dir: " + updPath);
             m_lock = false;
-            if (!sendMessage(MSG_OtherError, error)) {
-                NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
-            }
             return;
         }
-        m_lock = false;
-        if (!sendMessage(MSG_ShowStartInstallMessage)) {
-            NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
-        }
+        m_pUnzip->extractArchive(filePath, updPath);
     };
 
     if (!NS_File::dirExists(updPath) || NS_File::dirIsEmpty(updPath)) {
-        m_future_unzip = std::async(std::launch::async, unzip);
+        unzip();
     } else {
         if (isSuccessUnpacked(updPath + SUCCES_UNPACKED, newVersion)) {
             m_lock = false;
-            if (!sendMessage(MSG_ShowStartInstallMessage)) {
+            if (!sendMessage(MSG_ShowStartInstallMessage))
                 NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
-            }
+
         } else {
-            if (!NS_File::removeDirRecursively(updPath)) {
+            if (!NS_File::removeDirRecursively(updPath))
                 NS_Logger::WriteLog(DEFAULT_ERROR_MESSAGE);
-            }
-            m_future_unzip = std::async(std::launch::async, unzip);
+            unzip();
         }
     }
 }
