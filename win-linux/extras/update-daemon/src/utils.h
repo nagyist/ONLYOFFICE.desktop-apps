@@ -75,7 +75,6 @@ wstring parentPath(const wstring &path);
 wstring tempPath();
 wstring appPath();
 string getFileHash(const wstring &fileName);
-bool unzipArchive(const wstring &zipFilePath, const wstring &folderPath);
 bool verifyEmbeddedSignature(const wstring &fileName);
 }
 
