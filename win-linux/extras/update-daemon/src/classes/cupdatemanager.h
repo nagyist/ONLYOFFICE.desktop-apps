@@ -38,6 +38,8 @@
 #include "classes/csocket.h"
 #include <future>
 
+typedef std::function<void(void)> FnVoidVoid;
+
 using std::wstring;
 using std::future;
 
@@ -47,6 +49,9 @@ class CUpdateManager
 public:
     explicit CUpdateManager();
     ~CUpdateManager();
+
+    /* callback */
+    void aboutToQuit(FnVoidVoid callback);
 
 private:
     void init();
@@ -59,6 +64,7 @@ private:
     bool sendMessage(int cmd, const wstring &param1 = L"null", const wstring &param2 = L"null",
                         const wstring &param3 = L"null");
 
+    FnVoidVoid   m_quit_callback = nullptr;
     wstring      m_newVersion;
     bool         m_lock = false;
     int          m_downloadMode;

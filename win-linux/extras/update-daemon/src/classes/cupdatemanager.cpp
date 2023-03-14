@@ -101,6 +101,13 @@ CUpdateManager::~CUpdateManager()
     delete m_pUnzip, m_pUnzip = nullptr;
     delete m_pDownloader, m_pDownloader = nullptr;
     delete m_socket, m_socket = nullptr;
+    if (m_quit_callback)
+        m_quit_callback();
+}
+
+void CUpdateManager::aboutToQuit(FnVoidVoid callback)
+{
+    m_quit_callback = callback;
 }
 
 void CUpdateManager::init()

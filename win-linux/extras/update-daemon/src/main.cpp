@@ -155,9 +155,10 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
     ReportSvcStatus(SERVICE_RUNNING, NO_ERROR, 0);
 
     CUpdateManager upd;
-    WaitForSingleObject(gSvcStopEvent, INFINITE);
-
-    ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
+    upd.aboutToQuit([]() {
+        ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
+    });
+    WaitForSingleObject(gSvcStopEvent, INFINITE);    
     CloseHandle(gSvcStopEvent);
 }
 
