@@ -34,9 +34,7 @@
 #include "svccontrol.h"
 #include "classes/capplication.h"
 #include "classes/cupdatemanager.h"
-#include "classes/ctimer.h"
 #include "../../src/defines.h"
-
 
 SERVICE_STATUS          gSvcStatus;
 SERVICE_STATUS_HANDLE   gSvcStatusHandle;
@@ -45,7 +43,6 @@ HANDLE                  gSvcStopEvent = NULL;
 
 VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv);
 VOID WINAPI SvcCtrlHandler(DWORD dwCtrl);
-DWORD WINAPI SvcWorkerThread(LPVOID lpParam);
 VOID ReportSvcStatus(DWORD, DWORD, DWORD);
 VOID SvcReportEvent(LPTSTR);
 
@@ -157,11 +154,10 @@ VOID WINAPI SvcMain(DWORD argc, LPTSTR *argv)
     // Report running status when initialization is complete.
     ReportSvcStatus(SERVICE_RUNNING, NO_ERROR, 0);
 
-    // Start the thread that will perform the main task of the service
-    HANDLE hThread = CreateThread(NULL, 0, SvcWorkerThread, NULL, 0, NULL);
-    WaitForSingleObject(hThread, INFINITE);
+    CUpdateManager upd;
+    WaitForSingleObject(gSvcStopEvent, INFINITE);
+
     ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
-    CloseHandle(hThread);
     CloseHandle(gSvcStopEvent);
 }
 
@@ -181,20 +177,6 @@ VOID WINAPI SvcCtrlHandler(DWORD dwCtrl)
     default:
         break;
     }
-}
-
-DWORD WINAPI SvcWorkerThread(LPVOID lpParam)
-{
-    CApplication app;
-    CUpdateManager upd;
-    CTimer timer;
-    timer.start(2000, [&app, &timer]() {
-        if (WaitForSingleObject(gSvcStopEvent, 0) == WAIT_OBJECT_0) {
-            timer.stop();
-            app.exit(0);
-        }
-    });
-    return (DWORD)app.exec();
 }
 
 VOID ReportSvcStatus(DWORD currState, DWORD exitCode, DWORD waitHint)
