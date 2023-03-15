@@ -1,8 +1,7 @@
 #include "cunzip.h"
 #include "utils.h"
-#include <shlobj_core.h>
 #include <atlbase.h>
-#include <comutil.h>
+#include <Shldisp.h>
 
 
 bool StringToFolder(CComPtr<IShellDispatch> &pISD, CComPtr<Folder> &folder, const wstring &path)
