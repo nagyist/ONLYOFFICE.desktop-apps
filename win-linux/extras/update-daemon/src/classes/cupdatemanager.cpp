@@ -134,12 +134,14 @@ void CUpdateManager::init()
                 m_downloadMode = Mode::CHECK_UPDATES;
                 if (m_pDownloader)
                     m_pDownloader->downloadFile(params[1], generateTmpFileName(L".json"));
+                NS_Logger::WriteLog(L"Received MSG_CheckUpdates, URL: " + params[1]);
                 break;
             }
             case MSG_LoadUpdates: {
                 m_downloadMode = Mode::DOWNLOAD_UPDATES;
                 if (m_pDownloader)
                     m_pDownloader->downloadFile(params[1], generateTmpFileName(L".zip"));
+                NS_Logger::WriteLog(L"Received MSG_LoadUpdates, URL: " + params[1]);
                 break;
             }
             case MSG_StopDownload: {
