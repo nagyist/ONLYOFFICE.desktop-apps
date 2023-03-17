@@ -39,6 +39,7 @@
 #include "utils.h"
 #include "../../src/defines.h"
 #include <Windows.h>
+#include <WinInet.h>
 #include <shlwapi.h>
 #include <tchar.h>
 #include <sstream>
@@ -131,6 +132,7 @@ void CUpdateManager::init()
         if (params.size() == 4) {
             switch (std::stoi(params[0])) {
             case MSG_CheckUpdates: {
+                DeleteUrlCacheEntry(params[1].c_str());
                 m_downloadMode = Mode::CHECK_UPDATES;
                 if (m_pDownloader)
                     m_pDownloader->downloadFile(params[1], generateTmpFileName(L".json"));
