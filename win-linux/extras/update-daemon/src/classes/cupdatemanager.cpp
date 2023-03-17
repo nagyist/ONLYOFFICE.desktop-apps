@@ -48,6 +48,7 @@
 #define BACKUP_PATH      TEXT("/" REG_APP_NAME "Backup")
 #define APP_LAUNCH_NAME  L"/DesktopEditors.exe"
 #define APP_LAUNCH_NAME2 L"/editors.exe"
+#define APP_HELPER       L"/editors_helper.exe"
 #define DAEMON_NAME      L"/update-daemon.exe"
 #define SUCCES_UNPACKED  L"/.success_unpacked"
 
@@ -323,6 +324,20 @@ void CUpdateManager::startReplacingFiles()
 
         if (NS_File::isProcessRunning(app)) {
             NS_Logger::WriteLog(L"Update cancelled. The main application is not closed!", true);
+            return;
+        }
+    }
+
+    // Wait until editors_helper.exe closes
+    {
+        int retries = 10;
+        wstring app(APP_HELPER);
+        app = app.substr(1);
+        while (NS_File::isProcessRunning(app) && retries-- > 0)
+            Sleep(500);
+
+        if (NS_File::isProcessRunning(app)) {
+            NS_Logger::WriteLog(L"Update cancelled. The editors_helper.exe is not closed!", true);
             return;
         }
     }
