@@ -1813,6 +1813,15 @@ var
   argsArray: TArrayOfString;
   version: TWindowsVersion;
 begin
+#ifdef _ONLYOFFICE
+  AddKeyValue(langs, 'cs',    'cs-CZ:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'de',    'de-DE:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'es',    'es-ES:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'fr',    'fr-FR:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'it_IT', 'it-IT:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'pt_BR', 'pt-BR:new.docx:new.pptx:new.xlsx:new.docxf');
+  AddKeyValue(langs, 'ru',    'ru-RU:new.docx:new.pptx:new.xlsx:new.docxf');
+#else
   AddKeyValue(langs, 'cs', 'cs-CZ:new.docx:new.pptx:new.xlsx');
   AddKeyValue(langs, 'de',    'de-DE:new.docx:new.pptx:new.xlsx');
   AddKeyValue(langs, 'es',    'es-ES:new.docx:new.pptx:new.xlsx');
@@ -1820,9 +1829,16 @@ begin
   AddKeyValue(langs, 'it_IT', 'it-IT:new.docx:new.pptx:new.xlsx');
   AddKeyValue(langs, 'pt_BR', 'pt-BR:new.docx:new.pptx:new.xlsx');
   AddKeyValue(langs, 'ru',    'ru-RU:new.docx:new.pptx:new.xlsx');
+#endif
 
   if not TryGetValue(langs, ExpandConstant('{language}'), args) then
+  begin
+#ifdef _ONLYOFFICE
+    args := '.:mm_new.docx:mm_new.pptx:mm_new.xlsx:mm_new.docxf';
+#else
     args := '.:mm_new.docx:mm_new.pptx:mm_new.xlsx';
+#endif
+  end;
 
   Explode(argsArray, args, ':');
 
@@ -1851,6 +1867,15 @@ begin
     RegWriteStringValue(HKEY_LOCAL_MACHINE, regpath, 'FileName', progpath + '\' + argsArray[3]);
   end;
 
+#ifdef _ONLYOFFICE
+  regpath := ExpandConstant('Software\Classes\.docxf\{#ASCC_REG_PREFIX}.Docxf\ShellNew');
+  if not RegKeyExists(HKEY_LOCAL_MACHINE, regpath) then
+  begin
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, regpath, 'IconPath', ExpandConstant('{app}\{#iconsExe},13'));
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, regpath, 'FileName', progpath + '\' + argsArray[4]);
+  end;
+#endif
+
   GetWindowsVersionEx(version);
   if version.Major = 10 then begin
     RegQueryStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docx', '', oldValue);
@@ -1859,6 +1884,11 @@ begin
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.xlsx', '{#ASCC_REG_PREFIX}', oldValue);
     RegQueryStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '', oldValue);
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '{#ASCC_REG_PREFIX}', oldValue);
+#ifdef _ONLYOFFICE
+    RegQueryStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '', oldValue);
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '{#ASCC_REG_PREFIX}', oldValue);
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '', '{#ASCC_REG_PREFIX}.Docxf')
+#endif
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docx', '', '{#ASCC_REG_PREFIX}.Document.12')
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.xlsx', '', '{#ASCC_REG_PREFIX}.Sheet.12')
     RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '', '{#ASCC_REG_PREFIX}.Show.12')
@@ -2012,6 +2042,9 @@ begin
   RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, ExpandConstant('Software\Classes\.docx\{#ASCC_REG_PREFIX}.Document.12'));
   RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, ExpandConstant('Software\Classes\.pptx\{#ASCC_REG_PREFIX}.Show.12'));
   RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, ExpandConstant('Software\Classes\.xlsx\{#ASCC_REG_PREFIX}.Sheet.12'));
+#ifdef _ONLYOFFICE
+  RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, ExpandConstant('Software\Classes\.docxf\{#ASCC_REG_PREFIX}.Docxf'));
+#endif
 
   GetWindowsVersionEx(version);
   if version.Major = 10 then begin
@@ -2021,6 +2054,11 @@ begin
        RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.xlsx', '', oldValue);
     if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '{#ASCC_REG_PREFIX}', oldValue) then
        RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '', oldValue);
+#ifdef _ONLYOFFICE
+    if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '{#ASCC_REG_PREFIX}', oldValue) then
+       RegWriteStringValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '', oldValue);
+    RegDeleteValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docxf', '{#ASCC_REG_PREFIX}');
+#endif
     RegDeleteValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.docx', '{#ASCC_REG_PREFIX}');
     RegDeleteValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.xlsx', '{#ASCC_REG_PREFIX}');
     RegDeleteValue(HKEY_LOCAL_MACHINE, 'Software\Classes\.pptx', '{#ASCC_REG_PREFIX}');
