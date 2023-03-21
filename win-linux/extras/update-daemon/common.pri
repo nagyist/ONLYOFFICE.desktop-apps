@@ -81,7 +81,8 @@ LIBS += -luser32 \
         -lrpcrt4 \
         -lwtsapi32 \
         -lcrypt32 \
-        -lwintrust
+        -lwintrust \
+        -luserenv
 
 OBJECTS_DIR = $$DESTDIR/obj
 MOC_DIR = $$DESTDIR/moc

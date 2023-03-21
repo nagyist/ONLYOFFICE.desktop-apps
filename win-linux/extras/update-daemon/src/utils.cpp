@@ -46,6 +46,7 @@
 #include <WtsApi32.h>
 #include <Softpub.h>
 #include <TlHelp32.h>
+#include <userenv.h>
 #include <vector>
 #include <sstream>
 
@@ -232,22 +233,39 @@ namespace NS_File
             return false;
         }
 
+        HANDLE hTokenDup = NULL;
+        if (!DuplicateTokenEx(hUserToken, MAXIMUM_ALLOWED, NULL, SecurityImpersonation, TokenPrimary, &hTokenDup)) {
+            CloseHandle(hUserToken);
+            return false;
+        }
+
+        LPVOID lpvEnv = NULL;
+        if (!CreateEnvironmentBlock(&lpvEnv, hTokenDup, TRUE)) {
+            CloseHandle(hTokenDup);
+            CloseHandle(hUserToken);
+            return false;
+        }
+
         STARTUPINFO si;
         ZeroMemory(&si, sizeof(STARTUPINFO));
         si.cb = sizeof(STARTUPINFO);
-        si.lpDesktop = const_cast<LPWSTR>(L"winsta0\\default");
+        si.lpDesktop = const_cast<LPWSTR>(L"Winsta0\\Default");
         PROCESS_INFORMATION pi;
-        if (CreateProcessAsUser(hUserToken, fileName.c_str(),
+        if (CreateProcessAsUser(hTokenDup, fileName.c_str(),
                                 const_cast<LPWSTR>(args.c_str()),
                                 NULL, NULL, FALSE,
-                                CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT,
-                                NULL, NULL, &si, &pi))
+                                CREATE_UNICODE_ENVIRONMENT,
+                                lpvEnv, NULL, &si, &pi))
         {
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
+            DestroyEnvironmentBlock(lpvEnv);
+            CloseHandle(hTokenDup);
             CloseHandle(hUserToken);
             return true;
         }
+        DestroyEnvironmentBlock(lpvEnv);
+        CloseHandle(hTokenDup);
         CloseHandle(hUserToken);
         return false;
     }
