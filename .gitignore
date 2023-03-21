@@ -10,6 +10,7 @@ win-linux/ASCDocumentEditor.build/*
 
 win-linux/package/linux/index.html
 win-linux/package/windows/index.html
+win-linux/package/windows/data/vcredist
 
 win-linux/package/linux/common/opt
 win-linux/package/linux/common/usr/share/applications/variables.m4
@@ -26,6 +27,7 @@ win-linux/package/linux/urpmi/builddir
 win-linux/package/linux/suse-rpm/builddir
 win-linux/package/linux/tar
 
+common/loginpage/build/plugins/*
 common/loginpage/build/node_modules/*
 common/loginpage/deploy/*
 common/loginpage/src/dlglogin.min.js
