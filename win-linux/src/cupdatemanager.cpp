@@ -41,6 +41,7 @@
 #include "defines.h"
 #include "version.h"
 #include "clangater.h"
+#include "clogger.h"
 #include "components/cmessage.h"
 #include "cascapplicationmanagerwrapper.h"
 #include <QCryptographicHash>
@@ -204,13 +205,15 @@ CUpdateManager::CUpdateManager(QObject *parent):
 #endif
 
     if ( !m_checkUrl.empty()) {
+        CLogger::log("Updates is on, URL: " + QString::fromStdWString(m_checkUrl));
 //        m_pTimer = new QTimer(this);
 //        m_pTimer->setSingleShot(false);
 //        connect(m_pTimer, SIGNAL(timeout()), this, SLOT(checkUpdates()));
         if (AppOptions::packageType() == AppOptions::AppPackageType::Portable)
             runProcess(qApp->applicationDirPath().toStdWString() + DAEMON_NAME, L"--run-as-app");
         init();
-    }
+    } else
+        CLogger::log("Updates is off, URL is empty.");
 }
 
 CUpdateManager::~CUpdateManager()
