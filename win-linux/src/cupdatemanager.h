@@ -107,6 +107,7 @@ private:
     QTimer      *m_pCheckOnStartupTimer = nullptr;
     wstring     m_checkUrl;
     int         m_downloadMode;
+    bool        m_manualCheck = false;
     QString     m_newVersion;
     CFileDownloader  * m_pDownloader = nullptr;
 
@@ -115,7 +116,7 @@ private:
     };
 
 public slots:
-    void checkUpdates();
+    void checkUpdates(bool manualCheck = false);
 
 signals:
     void checkFinished(const bool error, const bool updateExist, const QString &version, const QString &changelog);

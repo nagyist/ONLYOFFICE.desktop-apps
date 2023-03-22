@@ -137,11 +137,12 @@ void CUpdateManager::onCompleteSlot(const int error)
     } else
     if (error == 1) {
         auto wgt = QApplication::activeWindow();
-        if (wgt && wgt->objectName() == "MainWindow" && !wgt->isMinimized())
-            CMessage::warning(wgt, tr("Server connection error!"));
+        if (wgt && wgt->objectName() == "MainWindow" && !wgt->isMinimized() && m_manualCheck)
+            CMessage::warning(wgt, tr("Unable to connect to the update server."));
     } else {
         // Pause or Stop
     }
+    m_manualCheck = false;
 }
 
 void CUpdateManager::init()
@@ -206,8 +207,9 @@ void CUpdateManager::clearTempFiles(const QString &except)
 #endif
 }
 
-void CUpdateManager::checkUpdates()
+void CUpdateManager::checkUpdates(bool manualCheck)
 {
+    m_manualCheck = manualCheck;
     destroyStartupTimer(m_pCheckOnStartupTimer);
     m_newVersion = "";
 #ifdef Q_OS_WIN

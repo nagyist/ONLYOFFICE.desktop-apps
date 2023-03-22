@@ -337,7 +337,7 @@ bool CAscApplicationManagerWrapper::processCommonEvent(NSEditorApi::CAscCefMenuE
             const QString params = QString::fromStdWString(pData->get_Param());
 #ifdef Q_OS_WIN
             if (params == "check") {
-                m_pUpdateManager->checkUpdates();
+                m_pUpdateManager->checkUpdates(true);
             } else
             if (params == "download") {
                 m_pUpdateManager->loadUpdates();
