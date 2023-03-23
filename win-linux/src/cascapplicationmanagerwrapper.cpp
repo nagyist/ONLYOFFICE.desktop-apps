@@ -241,7 +241,8 @@ bool CAscApplicationManagerWrapper::processCommonEvent(NSEditorApi::CAscCefMenuE
 
                 auto * editor = editorWindowFromViewId(event->get_SenderId());
                 if ( editor && editor->isCustomWindowStyle() ) {
-                    sendCommandTo(ptr, L"window:features", Utils::stringifyJson(QJsonObject{{"singlewindow",true}}).toStdWString());
+                    QJsonObject json{{"skiptoparea", TOOLBTN_HEIGHT},{"singlewindow",true}};
+                    sendCommandTo(ptr, L"window:features", Utils::stringifyJson(json).toStdWString());
                 }
             }
             return true;
@@ -273,7 +274,7 @@ bool CAscApplicationManagerWrapper::processCommonEvent(NSEditorApi::CAscCefMenuE
         } else
 #ifdef Q_OS_WIN
         if ( cmd.find(L"app:onready") != std::wstring::npos ) {
-            if ( !IsWindowsVistaOrGreater() )
+            if ( !IsWindowsVistaOrGreater() && !InputArgs::contains(L"--xp-unlock-portals"))    // TODO: remove --xp-unlock-portals in ver 7.4, for tests only
                 sendCommandTo(SEND_TO_ALL_START_PAGE, "panel:hide", "connect");
         } else
 #endif
@@ -1453,6 +1454,20 @@ void CAscApplicationManagerWrapper::sendCommandTo(CCefView * target, const wstri
 
         target->Apply(pEvent);
     } else AscAppManager::getInstance().SetEventToAllMainWindows(pEvent);
+}
+
+void CAscApplicationManagerWrapper::sendCommandToAllEditors(const std::wstring& cmd, const std::wstring& args)
+{
+    APP_CAST(_app);
+
+    CCefView * target;
+    for ( auto i : _app.GetViewsId() ) {
+        target = _app.GetViewById(i);
+
+        if ( target->GetType() == cvwtEditor ) {
+            sendCommandTo(target, cmd, args);
+        }
+    }
 }
 
 void CAscApplicationManagerWrapper::sendEvent(int type, void * data)

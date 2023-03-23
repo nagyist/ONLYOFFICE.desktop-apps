@@ -80,6 +80,8 @@ SetupMutex                =ASC
 #if str(_ARCH) == "64"
 ArchitecturesAllowed              = x64
 ArchitecturesInstallIn64BitMode   = x64
+#else
+ArchitecturesAllowed              = x86
 #endif
 
 #ifndef _WIN_XP
@@ -803,7 +805,7 @@ begin
   if CurStep = ssDone then begin
     // if not (gHWND = 0) then begin
     if CheckCommandlineParam('/update') then begin
-      ShellExec('', ExpandConstant('{app}\{#iconsExe}'), '', '', SW_SHOW, ewNoWait, ErrorCode);
+      ShellExecAsOriginalUser('', ExpandConstant('{app}\{#iconsExe}'), '', '', SW_SHOW, ewNoWait, ErrorCode);
     end
   end else
     WizardForm.CancelButton.Enabled := isInstalled;
@@ -982,7 +984,7 @@ Name: {group}\{cm:Uninstall}; Filename: {uninstallexe}; WorkingDir: {app};
 
 [Run]
 ;Filename: {app}\{#NAME_EXE_OUT}; Description: {cm:Launch,{#sAppName}}; Flags: postinstall nowait skipifsilent;
-Filename: {app}\{#iconsExe}; Description: {cm:Launch,{#sAppName}}; Flags: postinstall nowait skipifsilent;
+Filename: {app}\{#iconsExe}; Description: {cm:Launch,{#sAppName}}; Flags: postinstall nowait skipifsilent runasoriginaluser;
 ;Filename: http://www.onlyoffice.com/remove-portal-feedback-form.aspx; Description: Visit website; Flags: postinstall shellexec nowait 
 
 

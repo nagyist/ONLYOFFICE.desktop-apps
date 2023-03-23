@@ -567,23 +567,25 @@ void CUpdateManager::onLoadCheckFinished(const QString &filePath)
 
 void CUpdateManager::onCheckFinished(bool error, bool updateExist, const QString &version, const QString &changelog)
 {
-    if (!error && updateExist) {
-        AscAppManager::sendCommandTo(0, "updates:checking", QString("{\"version\":\"%1\"}").arg(version));
-        switch (getUpdateMode()) {
-        case UpdateMode::SILENT:
+    if ( !error) {
+        if ( updateExist ) {
+            QString args = QString("{\"version\":\"%1\"}").arg(version);
+            AscAppManager::sendCommandTo(0, "updates:checking", args);
+            AscAppManager::sendCommandToAllEditors(L"updates:checking", args.toStdWString());
+            switch (getUpdateMode()) {
+            case UpdateMode::SILENT:
+                m_lock = false;
+                loadUpdates();
+                break;
+            case UpdateMode::ASK:
+                m_dialogSchedule->addToSchedule("showUpdateMessage");
+                break;
+            }
+        } else {
+            AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
             m_lock = false;
-            loadUpdates();
-            break;
-        case UpdateMode::ASK:
-            m_dialogSchedule->addToSchedule("showUpdateMessage");
-            break;
         }
-    } else
-    if (!error && !updateExist) {
-        AscAppManager::sendCommandTo(0, "updates:checking", "{\"version\":\"no\"}");
-        m_lock = false;
-    } else
-    if (error) {
+    } else {
         m_dialogSchedule->addToSchedule("criticalMsg", changelog);
     }
 }
