@@ -30,7 +30,7 @@
  *
 */
 
-#include "utils.h"
+#include "platform_win/utils.h"
 #include "version.h"
 #include <Windows.h>
 #include <shellapi.h>

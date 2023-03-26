@@ -30,46 +30,71 @@
  *
  */
 
-#ifndef CSOCKET_H
-#define CSOCKET_H
-
-#include <functional>
-
-using std::size_t;
-
-typedef std::function<void(void*, size_t)> FnVoidData;
-typedef std::function<void(const char*)> FnVoidCharPtr;
+#include "cunzip.h"
+#include "platform_linux/utils.h"
+#include <signal.h>
 
 
-enum MsgCommands {
-    MSG_CheckUpdates = 0,
-    MSG_LoadUpdates,
-    MSG_LoadCheckFinished,
-    MSG_LoadUpdateFinished,
-    MSG_UnzipIfNeeded,
-    MSG_ShowStartInstallMessage,
-    MSG_StartReplacingFiles,
-    MSG_ClearTempFiles,
-    MSG_Progress,
-    MSG_StopDownload,
-    MSG_OtherError
-};
-
-class CSocket
+int unzipArchive(const string &zipFilePath, const string &folderPath, std::atomic_bool &run)
 {
-public:
-    CSocket(int sender_port, int receiver_port);
-    ~CSocket();
+    if (!NS_File::fileExists(zipFilePath) || !NS_File::dirExists(folderPath))
+        return UNZIP_ERROR;
 
-    /* callback */
-    bool isPrimaryInstance();
-    bool sendMessage(void *data, size_t size);
-    void onMessageReceived(FnVoidData callback);
-    void onError(FnVoidCharPtr callback);
+    string cmd = "unzip -o -d ";
+    cmd += folderPath + " ";
+    cmd += zipFilePath;
 
-private:
-    class CSocketPrv;
-    CSocketPrv *pimpl = nullptr;
-};
+    FILE *pipe = popen(cmd.c_str(), "r");
+    if (!pipe)
+        return UNZIP_ERROR;
 
-#endif // CSOCKET_H
+    pid_t pid = fileno(pipe);
+    char buffer[256];
+    int res = UNZIP_OK;
+    while (fgets(buffer, sizeof(buffer), pipe)) {
+        if (!run) {
+            res = UNZIP_ABORT;
+            kill(pid, SIGINT);
+            break;
+        }
+    }
+    if (pclose(pipe) != 0 && res != UNZIP_ABORT)
+        res = UNZIP_ERROR;
+
+    return res;
+}
+
+CUnzip::CUnzip()
+{
+    m_run = false;
+}
+
+CUnzip::~CUnzip()
+{
+    m_run = false;
+    if (m_future.valid())
+        m_future.wait();
+}
+
+void CUnzip::extractArchive(const string &zipFilePath, const string &folderPath)
+{
+    m_run = false;
+    if (m_future.valid())
+        m_future.wait();
+    m_run = true;
+    m_future = std::async(std::launch::async, [=]() {
+        int res = unzipArchive(zipFilePath, folderPath, m_run);
+        if (m_complete_callback)
+            m_complete_callback(res);
+    });
+}
+
+void CUnzip::stop()
+{
+    m_run = false;
+}
+
+void CUnzip::onComplete(FnVoidInt callback)
+{
+    m_complete_callback = callback;
+}
