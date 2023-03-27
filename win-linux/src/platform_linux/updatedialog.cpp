@@ -33,10 +33,13 @@
 #include <QTextDocumentFragment>
 #include "defines.h"
 #include "gtkutils.h"
+#include "utils.h"
 #include <gtk/gtkmessagedialog.h>
 #include "updatedialog.h"
 #include <gdk/gdkx.h>
-
+//extern "C" {
+//#include "gtk_resources.h"
+//}
 
 #define toCharPtr(qstr) qstr.toLocal8Bit().data()
 #define TEXT_SKIP        toCharPtr(QObject::tr("Skip this version"))
@@ -54,7 +57,7 @@
 
 static void on_link_clicked(GtkWidget *widget, gpointer data)
 {
-    g_print("Link clicked\n");
+    // Link clicked
 }
 
 int WinDlg::showDialog(QWidget *parent,
@@ -68,16 +71,12 @@ int WinDlg::showDialog(QWidget *parent,
                 QString("\n<a href=\"%1\">%2</a>").arg(QString(RELEASE_NOTES), QObject::tr("Release notes")) : "";
     Window parent_xid = (parent) ? (Window)parent->winId() : 0L;
 
+//    GResource *resource = gtk_resources_get_resource();
+//    g_resources_register(resource);
+    WindowHelper::CParentDisable oDisabler(parent);
     gtk_init(NULL, NULL);
-    const char* img_name = "../res/icons/desktopeditors.ico";
-    GtkWidget *image = NULL;
-    image = gtk_image_new();
-    gtk_image_set_from_file(GTK_IMAGE(image), img_name);
-
     GtkDialogFlags flags;
     flags = (GtkDialogFlags)(GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT);
-
-
     GtkWidget *dialog = NULL;
     dialog = gtk_message_dialog_new(NULL,
                                     flags,
@@ -97,6 +96,7 @@ int WinDlg::showDialog(QWidget *parent,
     if (!content.isEmpty())
         gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", content.toLocal8Bit().data());
 
+    GtkWidget *image = gtk_image_new_from_resource("/res/icons/app-icon_64.png");
     gtk_message_dialog_set_image(GTK_MESSAGE_DIALOG(dialog), image);
     gtk_widget_show_all(image);
 
