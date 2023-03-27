@@ -214,6 +214,8 @@ CSocket::CSocket(int sender_port, int receiver_port) :
     pimpl(new CSocketPrv)
 {
     pimpl->m_sender_port = sender_port;
+    if (receiver_port <= 0)
+        return;
     pimpl->m_socket_created = pimpl->createSocket(receiver_port);
     pimpl->m_future = std::async(std::launch::async, [=]() {
         while (pimpl->m_run && !pimpl->m_socket_created) {
