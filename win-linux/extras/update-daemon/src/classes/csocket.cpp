@@ -46,24 +46,21 @@
 # include <sys/types.h>
 # include <io.h>
 # define close_socket(a) closesocket(a)
-# define AF_TYPE AF_INET
-# define INADDR "127.0.0.1"
-  typedef struct sockaddr_in SockAddr;
 #else
 # include <unistd.h>
 # include <sys/socket.h>
 # include <sys/un.h>
+# include <netinet/in.h>
 # include <arpa/inet.h>
 # define close_socket(a) close(a)
-# define AF_TYPE AF_UNIX
-# define PATHNAME "/tmp/socket_desktopeditors_"
-  typedef struct sockaddr_un SockAddr;
   typedef int SOCKET;
 #endif
 
+#define INADDR "127.0.0.1"
 #define RETRIES_DELAY_MS 4000
 #define BUFFSIZE 1024
 
+typedef struct sockaddr_in SockAddr;
 
 static bool initSocket(u_short port, SOCKET &tmpd, SockAddr &addr, int &ret, std::string &error)
 {
@@ -79,28 +76,16 @@ static bool initSocket(u_short port, SOCKET &tmpd, SockAddr &addr, int &ret, std
     if ((tmpd = socket(AF_TYPE, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
 #else
     tmpd = -1;
-    if ((tmpd = socket(AF_TYPE, SOCK_DGRAM, 0)) < 0) {
+    if ((tmpd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 #endif
         error = "Init socket: socket not valid!";
         return false;
     }
-
-    int len = 0;
     memset(&addr, 0, sizeof(SockAddr));
-#ifdef _WIN32
-    addr.sin_family = AF_TYPE;
+    addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr(INADDR);
     addr.sin_port = htons(port);
-    len = sizeof(addr);
-#else
-    char path[64] = {0};
-    sprintf(path, "%s%d", PATHNAME, port);
-    addr.sun_family = AF_TYPE;
-    strncpy(addr.sun_path, path, sizeof(path));
-    len = offsetof(SockAddr, sun_path) + (int)strlen(path);
-#endif
-    // bind the name to the descriptor
-    ret = ::bind(tmpd, (struct sockaddr*)&addr, len);
+    ret = ::bind(tmpd, (struct sockaddr*)&addr, sizeof(addr));
     return true;
 }
 
@@ -213,13 +198,6 @@ void CSocket::CSocketPrv::closeSocket(SOCKET &socket)
         shutdown(socket, SD_BOTH);
 #else
         shutdown(socket, SHUT_RDWR);
-        if (m_socket_created) {
-            SockAddr addr;
-            memset(&addr, 0, sizeof(SockAddr));
-            socklen_t addrlen = sizeof(addr);
-            if (getsockname(socket, (struct sockaddr*)&addr, &addrlen) == 0)
-                unlink(addr.sun_path);
-        }
 #endif
         close_socket(socket);
         socket = -1;
