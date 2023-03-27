@@ -53,8 +53,7 @@ namespace NS_Utils
 {
     string GetLastErrorAsString()
     {        
-        char buff[1024];
-        memset(buff, 0, sizeof(buff));
+        char buff[1024] = {0};
         strerror_r(errno, buff, sizeof(buff));
         return string(buff);
     }
@@ -63,15 +62,15 @@ namespace NS_Utils
     {
         if (showError)
             str += " " + GetLastErrorAsString();
-        const char *title = VER_PRODUCTNAME_STR;
 
         gtk_init(NULL, NULL);
         GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
                                                       "%s", str.c_str());
-        gtk_window_set_title(GTK_WINDOW(dialog), title);
-        gtk_dialog_run(GTK_DIALOG(dialog));
+        gtk_window_set_title(GTK_WINDOW(dialog), VER_PRODUCTNAME_STR);
+        int res = gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);
-        int res = 0;
+        while (gtk_events_pending())
+            gtk_main_iteration_do(FALSE);
         return res;
     }
 }
