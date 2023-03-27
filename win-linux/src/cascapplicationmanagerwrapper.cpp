@@ -120,11 +120,9 @@ CAscApplicationManagerWrapper::CAscApplicationManagerWrapper(CAscApplicationMana
 
 #ifdef _UPDMODULE
     m_pUpdateManager = new CUpdateManager(this);
-#ifdef Q_OS_WIN
     connect(m_pUpdateManager, &CUpdateManager::progresChanged, this, [=](const int &percent) {
         AscAppManager::sendCommandTo(0, "updates:download", QString("{\"progress\":\"%1\"}").arg(QString::number(percent)));
     });
-#endif
 #endif
 }
 

@@ -211,10 +211,8 @@ void CSocket::CSocketPrv::closeSocket(SOCKET &socket)
     if (socket >= 0) {
 #ifdef _WIN32
         shutdown(socket, SD_BOTH);
-        close_socket(socket);
 #else
         shutdown(socket, SHUT_RDWR);
-        close_socket(socket);
         if (m_socket_created) {
             SockAddr addr;
             memset(&addr, 0, sizeof(SockAddr));
@@ -223,6 +221,7 @@ void CSocket::CSocketPrv::closeSocket(SOCKET &socket)
                 unlink(addr.sun_path);
         }
 #endif
+        close_socket(socket);
         socket = -1;
     }
 }
